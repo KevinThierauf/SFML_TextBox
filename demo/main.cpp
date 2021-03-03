@@ -2,7 +2,7 @@
 #include <TextBox.hpp>
 #include <iostream>
 
-const char *fontFile = "font.tff";
+const char *fontFile = "font.ttf";
 
 int main() {
     // This demo is a modified version of the code from sfml's "Drawing 2D stuff" tutorial
@@ -10,6 +10,7 @@ int main() {
 
     // load font
     sf::Font font;
+
     if (!font.loadFromFile(fontFile)) {
         std::cerr << "A font must be provided in order for this demo to work!" << std::endl;
         std::cerr << "Make sure a font file named " + std::string(fontFile) + " exists next to this executable." << std::endl;
