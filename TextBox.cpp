@@ -6,6 +6,7 @@
 #include <ostream>
 #include <cmath>
 #include <SFML/System/Clock.hpp>
+#include <iostream>
 #include "TextBox.hpp"
 
 namespace sftb {
@@ -21,9 +22,8 @@ namespace sftb {
 
         void removeText(TextBox::Caret &caret, bool direction) {
             auto caretPosition = caret.getPosition();
-            auto removeToPosition = caret.getTextBox().getRelative(caretPosition, direction ? -1 : 1);
+            auto removeToPosition = caret.getTextBox().getRelativeCharacters(caretPosition, direction ? -1 : 1);
             caret.getTextBox().removeText(removeToPosition, caretPosition);
-            if (removeToPosition < caretPosition) caret.setPosition(removeToPosition);
         }
 
         sf::Clock &getCaretClock() {
@@ -127,26 +127,36 @@ namespace sftb {
                         // remove character to right
                         removeText(getTextBox().getPrimaryCaret(), false);
                         break;
-                    case sf::Keyboard::Left:
+                    case sf::Keyboard::Left: {
+                        TextBox::Caret &caret = getTextBox().getPrimaryCaret();
                         if (shift)
-                            getTextBox().getPrimaryCaret().move(0, -1);
-                        else getTextBox().getPrimaryCaret().moveSelectionEnd(0, -1);
+                            caret.setSelectionEndPos(
+                                    getTextBox().getRelativeCharacters(caret.getSelectionEndPos(), -1));
+                        else caret.setPosition(getTextBox().getRelativeCharacters(caret.getPosition(), -1));
+                    }
                         break;
-                    case sf::Keyboard::Right:
+                    case sf::Keyboard::Right: {
+                        TextBox::Caret &caret = getTextBox().getPrimaryCaret();
                         if (shift)
-                            getTextBox().getPrimaryCaret().move(0, 1);
-                        else getTextBox().getPrimaryCaret().moveSelectionEnd(0, 1);
+                            caret.setSelectionEndPos(getTextBox().getRelativeCharacters(caret.getSelectionEndPos(), 1));
+                        else caret.setPosition(getTextBox().getRelativeCharacters(caret.getPosition(), 1));
+                    }
                         break;
-                    case sf::Keyboard::Up:
+                    case sf::Keyboard::Up: {
+                        TextBox::Caret &caret = getTextBox().getPrimaryCaret();
                         if (shift)
-                            getTextBox().getPrimaryCaret().move(-1, 0);
-                        else getTextBox().getPrimaryCaret().moveSelectionEnd(-1, 0);
+                            caret.setSelectionEndPos(
+                                    getTextBox().getVisibleRelativeLine(caret.getSelectionEndPos(), -1));
+                        else caret.setPosition(getTextBox().getVisibleRelativeLine(caret.getPosition(), -1));
+                    }
                         break;
-                    case sf::Keyboard::Down:
+                    case sf::Keyboard::Down: {
+                        TextBox::Caret &caret = getTextBox().getPrimaryCaret();
                         if (shift)
-                            getTextBox().getPrimaryCaret().move(1, 0);
-                        else getTextBox().getPrimaryCaret().moveSelectionEnd(1, 0);
-                        break;
+                            caret.setSelectionEndPos(
+                                    getTextBox().getVisibleRelativeLine(caret.getSelectionEndPos(), 1));
+                        else caret.setPosition(getTextBox().getVisibleRelativeLine(caret.getPosition(), 1));
+                    }
                     default:
                         break;
                 }
@@ -280,7 +290,7 @@ namespace sftb {
         return getVisibleStart() <= position && position <= getVisibleEnd();
     }
 
-    TextBox::Pos TextBox::getRelative(TextBox::Pos pos, int characters) const {
+    TextBox::Pos TextBox::getRelativeCharacters(TextBox::Pos pos, int characters) const {
         if (characters < 0) {
             characters = -characters;
             do {

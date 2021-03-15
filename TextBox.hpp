@@ -301,16 +301,6 @@ namespace sftb {
                 removeSelection();
                 setPosition(reference->insertText(getPosition(), string));
             }
-
-            void move(int line, int position) {
-                // todo - non monospaced fonts should use position of character on screen when moving
-                //  caret line, so that the caret is moved to the character above on the screen (instead
-                //  of just the character on the previous line with the same position).
-            }
-
-            void moveSelectionEnd(int line, int position) {
-                // todo
-            }
         };
     private:
         struct CharPosData {
@@ -606,7 +596,35 @@ namespace sftb {
         [[nodiscard]] Pos getVisibleStart() const;
         [[nodiscard]] Pos getVisibleEnd() const;
         [[nodiscard]] bool isPositionOnScreen(const Pos &position) const;
-        [[nodiscard]] Pos getRelative(Pos pos, int characters) const;
+
+        [[nodiscard]] Pos getRelativeCharacters(Pos pos, int characters) const;
+
+        [[nodiscard]] Pos getRelativeLine(Pos pos, int lineAmount) const {
+            if (lineAmount > 0) {
+                pos.line += lineAmount;
+                if (pos.line >= getNumberLines()) return getEndPos();
+            } else {
+                lineAmount = -lineAmount;
+                if (lineAmount == pos.line)
+                    pos.line = 0;
+                else if (lineAmount > pos.line) return getStartPos();
+                else pos.line -= lineAmount;
+            }
+            pos.position = std::min(pos.position, getLineLength(pos.line));
+            return pos;
+        }
+
+        // returns position above pos on screen (for monospaced fonts, this should return the same as getRelativeLine())
+        [[nodiscard]] Pos getVisibleRelativeLine(Pos pos, int lineAmount) const {
+            Pos relativePosition = getRelativeLine(pos, lineAmount);
+            // if getRelativeLine needs to modify the position, use that value instead
+            if (relativePosition.position != pos.position) return relativePosition;
+
+            auto line = relativePosition.line;
+            float xPos = getOffsetOf(pos).x;
+            auto position = getPositionAt({xPos, line * getLineHeight()}).position;
+            return {line, std::min(position, getLineLength(line))};
+        }
 
         [[nodiscard]] sf::Font &getFont() const {
             return *font;
@@ -684,7 +702,10 @@ namespace sftb {
 
         [[nodiscard]] Pos getPositionOfChar(const CharPos &pos) const {
             assert(pos && "empty CharPos");
-            return pos->line == nullptr ? getEndPos() : Pos{getLineIndex(pos->line), pos->getCharacterIndex()};
+            if(pos->line == nullptr) return getEndPos();
+            auto characterIndex = pos->getCharacterIndex();
+            assert(characterIndex <= (pos->line->getNumberCharacters() + 1) && "characterIndex unexpectedly out of bounds");
+            return Pos{getLineIndex(pos->line), characterIndex};
         }
 
         [[nodiscard]] sf::String getTextFrom(Pos first, Pos second) const;
