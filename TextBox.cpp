@@ -5,6 +5,7 @@
 #include <SFML/Window/Clipboard.hpp>
 #include <ostream>
 #include <cmath>
+#include <SFML/System/Clock.hpp>
 #include "TextBox.hpp"
 
 namespace sftb {
@@ -22,7 +23,12 @@ namespace sftb {
             auto caretPosition = caret.getPosition();
             auto removeToPosition = caret.getTextBox().getRelative(caretPosition, direction ? -1 : 1);
             caret.getTextBox().removeText(removeToPosition, caretPosition);
-            if(removeToPosition < caretPosition) caret.setPosition(removeToPosition);
+            if (removeToPosition < caretPosition) caret.setPosition(removeToPosition);
+        }
+
+        sf::Clock &getCaretClock() {
+            static sf::Clock clock;
+            return clock;
         }
     }
 
@@ -30,7 +36,7 @@ namespace sftb {
         class StandardInputHandler : public InputHandler {
         public:
             void handle(sf::Keyboard::Key key, bool pressed, bool control, bool shift, bool alt) override {
-                if(!pressed) return;
+                if (!pressed) return;
 
                 switch (key) {
                     case sf::Keyboard::A:
@@ -149,6 +155,13 @@ namespace sftb {
         return std::make_unique<StandardInputHandler>();
     }
 
+    void TextBox::Caret::setPosition(const TextBox::Pos &position) {
+        pos = reference->getCharPos(position);
+        selectionEndPos = nullptr;
+        reference->setRedrawRequired();
+        lastPositionChange = getCaretClock().getElapsedTime().asMilliseconds();
+    }
+
     TextBox::CharPos TextBox::getCharPos(std::weak_ptr<CharPosData> &reference, Line *line, CharInfo *info) {
         if (reference.expired()) return reference.lock();
         CharPos pos = std::make_shared<CharPosData>(line, info);
@@ -172,14 +185,16 @@ namespace sftb {
     }
 
     void TextBox::draw(sf::RenderTarget &target, sf::RenderStates states) const {
+        *redraw = false;
+
         // draw background
         sf::RectangleShape background(getSize());
         background.setFillColor(backgroundColor);
         target.draw(background);
 
         // draw text
-        Pos startPos = getPositionAt(getHorizontalOffset(), getVerticalOffset());
-        Pos endPos = startPos + getPositionAt(getSize()) + Pos{1, 1};
+        Pos startPos = getVisibleStart();
+        Pos endPos = getVisibleEnd();
 
         if (endPos.line > getNumberLines())
             endPos.line = getNumberLines();
@@ -218,10 +233,90 @@ namespace sftb {
             line++;
         }
 
-        // todo - draw caret
+        target.draw(caret, states);
         // todo - draw highlight
+    }
 
-        *redraw = false;
+    void TextBox::Caret::draw(sf::RenderTarget &target, sf::RenderStates states) const {
+        sf::RectangleShape shape({CARET_WIDTH, reference->getLineHeight()});
+
+        auto caretPosition = getPosition();
+        auto position = reference->getOffsetOf(caretPosition);
+        position.x -= CARET_WIDTH / 2;
+        position.y += reference->getLineHeight() / 8;
+        shape.setPosition(position);
+
+        sf::Color first = sf::Color::White;
+        sf::Color second = sf::Color::Transparent;
+
+        auto time = getCaretClock().getElapsedTime().asMilliseconds();
+        float percent = CARET_BLINK_WAIT > (time - lastPositionChange) ? 0.0f : 2 * std::abs(
+                static_cast<float>(time % CARET_BLINK_PERIOD) / CARET_BLINK_PERIOD - 0.5f);
+
+        sf::Color color(
+                percent * static_cast<float>(second.r - first.r) + static_cast<float>(first.r),
+                percent * static_cast<float>(second.g - first.g) + static_cast<float>(first.g),
+                percent * static_cast<float>(second.b - first.b) + static_cast<float>(first.b),
+                percent * static_cast<float>(second.a - first.a) + static_cast<float>(first.a)
+        );
+
+        shape.setFillColor(color);
+
+        target.draw(shape, states);
+
+        if (reference->isPositionOnScreen(caretPosition))
+            reference->setRedrawRequired();
+    }
+
+    TextBox::Pos TextBox::getVisibleStart() const {
+        return getPositionAt(getHorizontalOffset(), getVerticalOffset());
+    }
+
+    TextBox::Pos TextBox::getVisibleEnd() const {
+        return getPositionAt(sf::Vector2f(getHorizontalOffset(), getVerticalOffset()) + getSize()) + Pos{1, 1};
+    }
+
+    bool TextBox::isPositionOnScreen(const TextBox::Pos &position) const {
+        return getVisibleStart() <= position && position <= getVisibleEnd();
+    }
+
+    TextBox::Pos TextBox::getRelative(TextBox::Pos pos, int characters) const {
+        if (characters < 0) {
+            characters = -characters;
+            do {
+                if (pos.position >= characters) {
+                    pos.position -= characters;
+                    return pos;
+                }
+
+                if (pos.line == 0) {
+                    pos.position = 0;
+                    return pos;
+                }
+
+                characters -= static_cast<int>(pos.position) + 1;
+                pos.position = getLineLength(--pos.line);
+            } while (characters > 0);
+        } else {
+            do {
+                std::size_t lengthLine = getLineLength(pos.line);
+                if (lengthLine - pos.position >= characters) {
+                    pos.position += characters;
+                    return pos;
+                }
+
+                if (pos.line == getNumberLines()) {
+                    pos.position = 0;
+                    return pos;
+                }
+
+                characters -= static_cast<int>(lengthLine - pos.position) + 1;
+                pos.position = 0;
+                pos.line++;
+            } while (characters > 0);
+        }
+
+        return pos;
     }
 
     namespace {
@@ -284,7 +379,7 @@ namespace sftb {
         std::size_t endIndex = text.find('\n');
 
         if (endIndex != sf::String::InvalidPos) {
-            if(pos.line == getNumberLines()) lines.emplace_back(this);
+            if (pos.line == getNumberLines()) lines.emplace_back(this);
             Line &next = *lines.emplace(lines.begin() + pos.line + 1, this);
 
             Line &startLine = getLine(pos.line);
@@ -361,8 +456,11 @@ namespace sftb {
 
             handleScroll(event.mouseWheelScroll.wheel == sf::Mouse::Wheel::VerticalWheel, event.mouseWheelScroll.delta);
             if (event.mouseWheelScroll.wheel == sf::Mouse::HorizontalWheel) {
-                scrollBarManager.getHorizontalScrollBar().moveScroll(scrollBarManager.getSensitivityHorizontal() * event.mouseWheelScroll.delta);
-            } else scrollBarManager.getVerticalScrollBar().moveScroll(scrollBarManager.getSensitivityVertical() * event.mouseWheelScroll.delta);
+                scrollBarManager.getHorizontalScrollBar().moveScroll(
+                        scrollBarManager.getSensitivityHorizontal() * event.mouseWheelScroll.delta);
+            } else
+                scrollBarManager.getVerticalScrollBar().moveScroll(
+                        scrollBarManager.getSensitivityVertical() * event.mouseWheelScroll.delta);
         } else if (event.type == sf::Event::MouseButtonPressed) {
             if (isOutBounds(verifyArea, event.mouseButton.x, event.mouseButton.y)) return;
 

@@ -12,7 +12,6 @@ int main() {
 
     // load font
     sf::Font font;
-
     if (!font.loadFromFile(fontFile)) {
         std::cerr << "A font must be provided in order for this demo to work!" << std::endl;
         std::cerr << "Make sure a monospaced font file named " + std::string(fontFile) + " exists next to this executable."
@@ -22,24 +21,23 @@ int main() {
         return -1;
     }
     std::cout << "Font " << std::string(fontFile) << " loaded successfully!" << std::endl;
+
     // create textbox using font
     sftb::TextBox box{font, {WIDTH, HEIGHT}};
     const unsigned backgroundBrightness = 60;
     box.setBackgroundColor(sf::Color(backgroundBrightness, backgroundBrightness, backgroundBrightness));
     box.insertText({0,0}, "Hello, World!");
     box.insertLine(1, "0123456789");
-    sftb::TextBox::Pos pos = {0, 3};
-    std::cout << box.getRelative(pos, -1) << std::endl;
-    std::cout << (box.getRelative(box.getRelative(pos, -1), 1) == pos) << std::endl;
 
+    // create window
     sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "SFML_TextBox demo");
 
+    // standard event loop
     while (window.isOpen()) {
         sf::Event event{};
 
-        // wait for something to happen (user enters input, window is resized, etc.)
-        window.waitEvent(event);
-        do {
+        // poll events (user enters input, window is resized, etc.)
+        while (window.pollEvent(event)) {
             // handle event
             if (event.type == sf::Event::Closed)
                 window.close();
@@ -48,8 +46,7 @@ int main() {
                 window.setView(sf::View(sf::FloatRect(0.0f, 0.0f, event.size.width, event.size.height)));
                 box.setSize(sf::Vector2f(event.size.width, event.size.height));
             } else box.handleEvent(event); // send user input to text box
-            // there may be more events later in the queue -- poll for additional activity
-        } while (window.pollEvent(event));
+        }
 
         // event queue is now empty
 

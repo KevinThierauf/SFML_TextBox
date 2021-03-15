@@ -4,7 +4,6 @@
 #include <SFML/Graphics/Drawable.hpp>
 #include <functional>
 #include <utility>
-#include <iostream>
 #include "Reference.hpp"
 
 namespace sftb {
@@ -68,7 +67,7 @@ namespace sftb {
         }
 
         void moveScroll(float amount) {
-            setScroll(getScrollOffset() - amount);
+            setScroll(getScrollOffset() + amount);
         }
 
         void setScrollPercent(float percent) {

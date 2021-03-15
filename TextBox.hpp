@@ -225,14 +225,19 @@ namespace sftb {
         };
 
         // todo - multiple caret support
-        class Caret {
+        class Caret : public sf::Drawable {
             friend class TextBox;
+        public:
+            static constexpr float CARET_WIDTH = 2;
+            static constexpr int CARET_BLINK_WAIT = 2000;
+            static constexpr int CARET_BLINK_PERIOD = 2000;
         private:
             TextBox *reference;
             CharPos pos, selectionEndPos;
+            sf::Int32 lastPositionChange = 0;
 
-            Caret(TextBox &box, Pos position = {}) : reference(box.getReference()),
-                                                     pos(reference->getCharPos(position)), selectionEndPos(nullptr) {
+            explicit Caret(TextBox &box, Pos position = {}) :
+                    reference(box.getReference()), pos(reference->getCharPos(position)), selectionEndPos(nullptr) {
             }
 
             Caret(Caret &&) = default;
@@ -243,6 +248,8 @@ namespace sftb {
                 return {line, std::min(reference->getLineLength(line), position.position)};
             }
 
+        protected:
+            void draw(sf::RenderTarget &target, sf::RenderStates states) const override;
         public:
             Caret(const Caret &) = delete;
             Caret &operator=(const Caret &) = delete;
@@ -255,10 +262,7 @@ namespace sftb {
                 return reference->getPositionOfChar(pos);
             }
 
-            void setPosition(const Pos &position) {
-                pos = reference->getCharPos(position);
-                selectionEndPos = nullptr;
-            }
+            void setPosition(const Pos &position);
 
             void setClosestPosition(const Pos &position) {
                 setPosition(getClosestPos(position));
@@ -299,7 +303,7 @@ namespace sftb {
             }
 
             void move(int line, int position) {
-                // todo - for monospaced fonts should use position of character on screen when moving
+                // todo - non monospaced fonts should use position of character on screen when moving
                 //  caret line, so that the caret is moved to the character above on the screen (instead
                 //  of just the character on the previous line with the same position).
             }
@@ -599,44 +603,10 @@ namespace sftb {
             };
         }
 
-        [[nodiscard]] Pos getRelative(Pos pos, int characters) const {
-            if (characters < 0) {
-                characters = -characters;
-                do {
-                    if (pos.position >= characters) {
-                        pos.position -= characters;
-                        return pos;
-                    }
-
-                    if(pos.line == 0) {
-                        pos.position = 0;
-                        return pos;
-                    }
-
-                    characters -= static_cast<int>(pos.position) + 1;
-                    pos.position = getLineLength(--pos.line);
-                } while (characters > 0);
-            } else {
-                do {
-                    std::size_t lengthLine = getLineLength(pos.line);
-                    if (lengthLine - pos.position >= characters) {
-                        pos.position += characters;
-                        return pos;
-                    }
-
-                    if(pos.line == getNumberLines()) {
-                        pos.position = 0;
-                        return pos;
-                    }
-
-                    characters -= static_cast<int>(lengthLine - pos.position) + 1;
-                    pos.position = 0;
-                    pos.line++;
-                } while (characters > 0);
-            }
-
-            return pos;
-        }
+        [[nodiscard]] Pos getVisibleStart() const;
+        [[nodiscard]] Pos getVisibleEnd() const;
+        [[nodiscard]] bool isPositionOnScreen(const Pos &position) const;
+        [[nodiscard]] Pos getRelative(Pos pos, int characters) const;
 
         [[nodiscard]] sf::Font &getFont() const {
             return *font;
