@@ -175,25 +175,25 @@ namespace sftb {
         return info.referenceHolder.getCharPos(&line, &info);
     }
 
-    void TextBox::CharPosDataHolder::transfer(const CharPos &pos) {
+    void CharPosDataHolder::transfer(const CharPos &pos) {
         if (active()) {
             reference.lock()->setRelative(pos);
             reference.reset();
         }
     }
 
-    CharPos TextBox::CharPosDataHolder::getCharPos(Line *line, CharInfo *info) {
+    CharPos CharPosDataHolder::getCharPos(Line *line, CharInfo *info) {
         if (active()) return reference.lock();
         CharPos charPos = std::make_shared<CharPosData>(line, info);
         reference = charPos;
         return charPos;
     }
 
-    void TextBox::CharPosDataHolder::updateLine(Line &line) {
+    void CharPosDataHolder::updateLine(Line &line) {
         if (active()) reference.lock()->updateLine(line.getReference());
     }
 
-    void TextBox::CharPosDataHolder::updateCharInfo(CharInfo *info) {
+    void CharPosDataHolder::updateCharInfo(CharInfo *info) {
         if (active()) reference.lock()->updateCharInfo(info);
     }
 

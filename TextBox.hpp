@@ -25,36 +25,36 @@ namespace sf {
 }
 
 namespace sftb {
+    class CharPosDataHolder {
+    private:
+        std::weak_ptr<CharPosData> reference;
+
+    public:
+        CharPosDataHolder() = default;
+        CharPosDataHolder(const CharPosDataHolder &) = delete;
+        CharPosDataHolder &operator=(const CharPosDataHolder &) = delete;
+        CharPosDataHolder(CharPosDataHolder &&) = default;
+        CharPosDataHolder &operator=(CharPosDataHolder &&) = default;
+
+        ~CharPosDataHolder() {
+            assert(!active() && "CharPosDataHolder info was not transferred");
+        }
+
+        void transfer(const CharPos &pos);
+
+        [[nodiscard]] bool active() const {
+            return !reference.expired();
+        }
+
+        void updateLine(Line &line);
+        void updateCharInfo(CharInfo *info);
+        CharPos getCharPos(Line *line, CharInfo *info);
+    };
+
     class TextBox : public sf::Drawable, public Reference<TextBox> {
         friend class CharInfo;
         friend class Line;
     private:
-        class CharPosDataHolder {
-        private:
-            std::weak_ptr<CharPosData> reference;
-
-        public:
-            CharPosDataHolder() = default;
-            CharPosDataHolder(const CharPosDataHolder &) = delete;
-            CharPosDataHolder &operator=(const CharPosDataHolder &) = delete;
-            CharPosDataHolder(CharPosDataHolder &&) = default;
-            CharPosDataHolder &operator=(CharPosDataHolder &&) = default;
-
-            ~CharPosDataHolder() {
-                assert(!active() && "CharPosDataHolder info was not transferred");
-            }
-
-            void transfer(const CharPos &pos);
-
-            [[nodiscard]] bool active() const {
-                return !reference.expired();
-            }
-
-            void updateLine(Line &line);
-            void updateCharInfo(CharInfo *info);
-            CharPos getCharPos(Line *line, CharInfo *info);
-        };
-
         struct LineLengthCompare {
             bool operator()(Line *left, Line *right) const;
         };
@@ -296,7 +296,7 @@ namespace sftb {
         Char c;
         // todo - can this be optimized out? characters are likely to be accessed sequentially, having them more tightly packed
         //  could improve performance (in addition to being more memory friendly!)
-        TextBox::CharPosDataHolder referenceHolder;
+        CharPosDataHolder referenceHolder;
     public:
         explicit CharInfo(Char c) : c(c) {}
 
@@ -326,7 +326,7 @@ namespace sftb {
     public:
         TextBox::LineLengthSet::iterator lineLengthIterator;
         std::vector<CharInfo> characters;
-        TextBox::CharPosDataHolder endLineCharPosDataHolder;
+        CharPosDataHolder endLineCharPosDataHolder;
 
         auto createIterator(TextBox *box) {
             return box->lineLength.insert(getReference());

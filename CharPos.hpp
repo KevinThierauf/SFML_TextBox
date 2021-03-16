@@ -15,6 +15,7 @@ namespace sftb {
 
     struct CharPosData {
         friend class TextBox;
+        friend class CharPosDataHolder;
     public:
         struct Absolute {
             // nullptr line indicates end of text position
