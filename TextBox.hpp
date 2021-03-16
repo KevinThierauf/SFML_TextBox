@@ -3,7 +3,9 @@
 
 #include <SFML/Graphics/Drawable.hpp>
 #include <SFML/System/String.hpp>
+#include <SFML/System/Clock.hpp>
 #include <utility>
+#include <variant>
 #include <vector>
 #include <set>
 #include <memory>
@@ -224,20 +226,82 @@ namespace sftb {
             }
         };
 
+        class Caret;
+
+        class CaretStyle {
+            friend class Caret;
+        protected:
+            virtual void draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &caret) = 0;
+
+            virtual void notifyPositionChange(const Caret &c, const Pos &previousPosition) {
+            }
+
+        public:
+            CaretStyle() = default;
+            CaretStyle(CaretStyle &) = delete;
+            CaretStyle &operator=(CaretStyle &) = delete;
+            CaretStyle(CaretStyle &&) = delete;
+            CaretStyle &operator=(CaretStyle &&) = delete;
+
+            virtual ~CaretStyle() = default;
+        };
+
+        class StandardCaretStyle : public CaretStyle {
+        public:
+            static constexpr float DEFAULT_CARET_WIDTH = 2;
+            static constexpr int DEFAULT_CARET_BLINK_WAIT = 2000;
+            static constexpr int DEFAULT_CARET_BLINK_PERIOD = 2000;
+        private:
+            sf::Color firstColor;
+            sf::Color secondColor;
+            sf::Clock clock;
+
+            float caretWidth = DEFAULT_CARET_WIDTH;
+            int caretBlinkWait = DEFAULT_CARET_BLINK_WAIT;
+            int caretBlinkPeriod = DEFAULT_CARET_BLINK_PERIOD;
+
+            sf::Int32 lastPositionChange = 0;
+        protected:
+            void draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &caret) override;
+            void notifyPositionChange(const Caret &caret, const Pos &previousPosition) override;
+        public:
+            explicit StandardCaretStyle(sf::Color firstColor = sf::Color::White,
+                                        sf::Color secondColor = sf::Color::Transparent)
+                    : firstColor(firstColor), secondColor(secondColor) {}
+
+            float getBlinkPercent();
+            sf::Color getCurrentCaretColor();
+            sf::Vector2f getCaretPosition(const Caret &caret);
+            sf::Vector2f getCaretSize(const Caret &caret);
+
+            [[nodiscard]] const sf::Color &getFirstColor() const {
+                return firstColor;
+            }
+
+            void setFirstColor(const sf::Color &color) {
+                firstColor = color;
+            }
+
+            [[nodiscard]] const sf::Color &getSecondColor() const {
+                return secondColor;
+            }
+
+            void setSecondColor(const sf::Color &color) {
+                secondColor = color;
+            }
+        };
+
         // todo - multiple caret support
         class Caret : public sf::Drawable {
             friend class TextBox;
-        public:
-            static constexpr float CARET_WIDTH = 2;
-            static constexpr int CARET_BLINK_WAIT = 2000;
-            static constexpr int CARET_BLINK_PERIOD = 2000;
         private:
             TextBox *reference;
             CharPos pos, selectionEndPos;
-            sf::Int32 lastPositionChange = 0;
+            std::shared_ptr<CaretStyle> style;
 
             explicit Caret(TextBox &box, Pos position = {}) :
-                    reference(box.getReference()), pos(reference->getCharPos(position)), selectionEndPos(nullptr) {
+                    reference(box.getReference()), pos(reference->getCharPos(position)), selectionEndPos(nullptr),
+                    style(reference->getCaretStyle()) {
             }
 
             Caret(Caret &&) = default;
@@ -249,13 +313,25 @@ namespace sftb {
             }
 
         protected:
-            void draw(sf::RenderTarget &target, sf::RenderStates states) const override;
+            void draw(sf::RenderTarget &target, sf::RenderStates states) const override {
+                style->draw(target, states, *this);
+            }
+
         public:
             Caret(const Caret &) = delete;
             Caret &operator=(const Caret &) = delete;
 
             TextBox &getTextBox() {
                 return *reference;
+            }
+
+            [[nodiscard]] std::shared_ptr<CaretStyle> getCaretStyle() const {
+                return style;
+            }
+
+            void setCaretStyle(std::shared_ptr<CaretStyle> s) {
+                assert(s != nullptr && "s is nullptr");
+                style = std::move(s);
             }
 
             [[nodiscard]] Pos getPosition() const {
@@ -298,31 +374,93 @@ namespace sftb {
             }
 
             void insert(const sf::String &string) {
-                removeSelection();
+                removeSelectedText();
                 setPosition(reference->insertText(getPosition(), string));
             }
         };
     private:
         struct CharPosData {
-            // nullptr line indicates end of text position
-            // any other nullptr info indicates end of line
-            Line *line;
-            CharInfo *info;
+        public:
+            struct Absolute {
+                // nullptr line indicates end of text position
+                // any other nullptr info indicates end of line
+                Line *line;
+                CharInfo *info;
+            };
+        private:
+            using Relative = std::shared_ptr<CharPosData>;
 
-            CharPosData(Line *line, CharInfo *info) : line(line), info(info) {}
+            mutable std::variant<Absolute, Relative> locationInfo;
+
+            Absolute &getAbsolute() const {
+                assert(isAbsolute() && "location is not absolute");
+                return std::get<Absolute>(locationInfo);
+            }
+
+            Relative &getRelative() const {
+                assert(isRelative() && "location is not relative");
+                return std::get<Relative>(locationInfo);
+            }
+
+            bool isAbsolute() const {
+                return locationInfo.index() == 0;
+            }
+
+            bool isRelative() const {
+                return !isAbsolute();
+            }
+
+            void reduceRelative() const {
+                Relative &relative = getRelative();
+                // at least one relative link which leads to one absolute
+                if (relative->isRelative()) {
+                    // at least two relative links which lead to one absolute
+                    relative->reduceRelative();
+                    // exactly two relative links leading to one absolute
+                    locationInfo = relative->getRelative();
+                    // one relative to one absolute
+                }
+            }
+
+        public:
+            CharPosData(Line *line, CharInfo *info) : locationInfo(Absolute{line, info}) {}
 
             CharPosData(const CharPosData &) = delete;
             CharPosData &operator=(const CharPosData &) = delete;
             CharPosData(CharPosData &&) = delete;
             CharPosData &operator=(CharPosData &&) = delete;
 
+            void setRelative(std::shared_ptr<CharPosData> pointer) {
+                locationInfo = std::move(pointer);
+            }
+
+            const Absolute &getLinkedAbsolute() const {
+                if (isRelative()) {
+                    reduceRelative();
+                    return getRelative()->getAbsolute();
+                } else return getAbsolute();
+            }
+
             [[nodiscard]] std::size_t getCharacterIndex() const {
+                const Absolute &absolute = getLinkedAbsolute();
+                Line *line = absolute.line;
+                CharInfo *info = absolute.info;
+
                 // pointer arithmetic based on characters being sequential
                 // returns the number of elements between the first character and this character, which
                 // is also the index of this character
                 return line == nullptr ? 0 :
                        info == nullptr ? line->characters.size() :
                        info - &*line->characters.begin();
+            }
+
+            void updateLine(Line *line) {
+                // not getLinkedAbsolute() -- relative is only used to retain references, should never be updated
+                getAbsolute().line = line;
+            }
+
+            void updateCharInfo(CharInfo *info) {
+                getAbsolute().info = info;
             }
         };
 
@@ -338,9 +476,13 @@ namespace sftb {
             CharPosDataHolder &operator=(CharPosDataHolder &&) = default;
 
             ~CharPosDataHolder() {
+                assert(!active() && "CharPosDataHolder info was not transferred");
+            }
+
+            void transfer(const CharPos &pos) {
                 if (active()) {
-                    auto pointer = reference.lock();
-                    // todo - move references to appropriate character
+                    reference.lock()->setRelative(pos);
+                    reference.reset();
                 }
             }
 
@@ -349,11 +491,11 @@ namespace sftb {
             }
 
             void updateLine(Line &line) {
-                if (active()) reference.lock()->line = line.getReference();
+                if (active()) reference.lock()->updateLine(line.getReference());
             }
 
             void updateCharInfo(CharInfo *info) {
-                if (active()) reference.lock()->info = info;
+                if (active()) reference.lock()->updateCharInfo(info);
             }
 
             CharPos getCharPos(Line *line, CharInfo *info) {
@@ -437,8 +579,42 @@ namespace sftb {
                 updateLineLength(box);
             }
 
+            static void prepareRemove(const CharPos &transferPos, const std::vector<CharInfo>::iterator &start,
+                                      const std::vector<CharInfo>::iterator &end) {
+                for (auto iter = start; iter < end; iter++) {
+                    iter->referenceHolder.transfer(transferPos);
+                }
+            }
+
+            void prepareRemoveAll(const CharPos &transferPos) {
+                prepareRemove(transferPos, characters.begin(), characters.end());
+                endLineCharPosDataHolder.transfer(transferPos);
+            }
+
             void remove(TextBox *box, std::size_t start, std::size_t end = -1) {
-                characters.erase(characters.begin() + start, characters.begin() + std::min(end, characters.size()));
+                auto endIndex = std::min(end, characters.size());
+
+                CharPos transferPos;
+
+                if (start == 0) {
+                    auto lineIndex = box->getLineIndex(this);
+                    if (lineIndex == 0) {
+                        // end character if exists, or end of line
+                        transferPos = box->getCharPos({lineIndex, endIndex});
+                    } else {
+                        Line &previousLine = box->getLine(lineIndex - 1);
+                        transferPos = previousLine.endLineCharPosDataHolder.getCharPos(&previousLine, nullptr);
+                    }
+                } else {
+                    CharInfo &info = characters[start - 1];
+                    transferPos = info.referenceHolder.getCharPos(this, &info);
+                }
+
+                auto iterStart = characters.begin() + start;
+                auto iterEnd = characters.begin() + endIndex;
+                prepareRemove(transferPos, iterStart, iterEnd);
+
+                characters.erase(iterStart, iterEnd);
                 updateLineLength(box);
             }
 
@@ -488,6 +664,7 @@ namespace sftb {
         std::unique_ptr<InputHandler> inputHandler = InputHandler::standard();
         bool selectionActive = false;
         CharPosDataHolder endCharPosDataHolder;
+        std::shared_ptr<CaretStyle> caretStyle = std::make_shared<StandardCaretStyle>();
         Caret caret;
 
         Line &getLine(std::size_t line) {
@@ -521,7 +698,12 @@ namespace sftb {
 
         // return true if verify is true, and either x or y are outside this TextBox
         bool isOutBounds(bool verify, int x, int y) const;
-        static CharPos getCharPos(std::weak_ptr<CharPosData> &reference, Line *line, CharInfo *info);
+
+        CharPos getTransferPos(std::size_t start, std::size_t end) {
+            return start == 0 ? getCharPos({end, getLineLength(end)}) :
+                   getCharPos({start - 1, getLineLength(start - 1)});
+        }
+
     protected:
         void draw(sf::RenderTarget &target, sf::RenderStates states) const override;
     public:
@@ -546,11 +728,11 @@ namespace sftb {
         TextBox(TextBox &&other) = default;
         TextBox &operator=(TextBox &&) = default;
 
-        [[nodiscard]] float getVerticalOffset() const {
+        [[nodiscard]] float getTextOffsetVertical() const {
             return offset.y + scrollBarManager.getVerticalScrollBar().getScrollOffset();
         }
 
-        [[nodiscard]] float getHorizontalOffset() const {
+        [[nodiscard]] float getTextOffsetHorizontal() const {
             return offset.x + scrollBarManager.getHorizontalScrollBar().getScrollOffset();
         }
 
@@ -568,8 +750,8 @@ namespace sftb {
         }
 
         [[nodiscard]] Pos getPositionAt(float xOffset, float yOffset) const {
-            xOffset -= getHorizontalOffset();
-            yOffset -= getVerticalOffset();
+            xOffset -= getTextOffsetHorizontal();
+            yOffset -= getTextOffsetVertical();
 
             return {static_cast<std::size_t>(std::max(0, static_cast<int>(yOffset / getLineHeight()))),
                     static_cast<std::size_t>(std::max(0, static_cast<int>(xOffset / getCharacterWidth())))};
@@ -581,8 +763,8 @@ namespace sftb {
 
         [[nodiscard]] sf::Vector2f getOffsetOf(const Pos &pos) const {
             return {
-                    getHorizontalOffset() + static_cast<float>(pos.position) * getCharacterWidth(),
-                    getVerticalOffset() + static_cast<float>(pos.line) * getLineHeight()
+                    getTextOffsetHorizontal() + static_cast<float>(pos.position) * getCharacterWidth(),
+                    getTextOffsetVertical() + static_cast<float>(pos.line) * getLineHeight()
             };
         }
 
@@ -681,6 +863,18 @@ namespace sftb {
             inputHandler->textBox = getReference();
         }
 
+        std::shared_ptr<CaretStyle> getCaretStyle() const {
+            return caretStyle;
+        }
+
+        void setCaretStyle(std::shared_ptr<CaretStyle> style, bool applyToExisting = true) {
+            assert(style != nullptr && "style is nullptr");
+            caretStyle = std::move(style);
+            if (applyToExisting) {
+                getPrimaryCaret().setCaretStyle(caretStyle);
+            }
+        }
+
         [[nodiscard]] std::size_t getNumberLines() const {
             return lines.size();
         }
@@ -702,10 +896,8 @@ namespace sftb {
 
         [[nodiscard]] Pos getPositionOfChar(const CharPos &pos) const {
             assert(pos && "empty CharPos");
-            if(pos->line == nullptr) return getEndPos();
-            auto characterIndex = pos->getCharacterIndex();
-            assert(characterIndex <= (pos->line->getNumberCharacters() + 1) && "characterIndex unexpectedly out of bounds");
-            return Pos{getLineIndex(pos->line), characterIndex};
+            const CharPosData::Absolute &absolute = pos->getLinkedAbsolute();
+            return absolute.line == nullptr ? getEndPos() : Pos{getLineIndex(absolute.line), pos->getCharacterIndex()};
         }
 
         [[nodiscard]] sf::String getTextFrom(Pos first, Pos second) const;
@@ -722,6 +914,7 @@ namespace sftb {
 
         void removeLine(unsigned line) {
             assert(line < getNumberLines() && "line out of bounds");
+            getLine(line).prepareRemoveAll(getTransferPos(line, line + 1));
             lines.erase(lines.begin() + line);
         }
 
@@ -730,7 +923,15 @@ namespace sftb {
                    "start out of bounds"); // could omit check (implied by checks below) but may help debugging
             assert(end <= getNumberLines() && "end out of bounds");
             assert(start <= end && "start must be before end");
-            lines.erase(lines.begin() + start, lines.begin() + end);
+            // todo - try and optimize -- iterating over each removed character from each removed line in case
+            //  transfer is required is fairly inefficient
+            CharPos transfer = getTransferPos(start, end);
+            auto iterStart = lines.begin() + start;
+            auto iterEnd = lines.begin() + end;
+            for (auto iter = iterStart; iter < iterEnd; iter++) {
+                iter->prepareRemoveAll(transfer);
+            }
+            lines.erase(iterStart, iterEnd);
         }
 
         void handleEvent(const sf::Event &event, bool verifyArea = true);

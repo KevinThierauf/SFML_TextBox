@@ -5,8 +5,6 @@
 #include <SFML/Window/Clipboard.hpp>
 #include <ostream>
 #include <cmath>
-#include <SFML/System/Clock.hpp>
-#include <iostream>
 #include "TextBox.hpp"
 
 namespace sftb {
@@ -24,11 +22,6 @@ namespace sftb {
             auto caretPosition = caret.getPosition();
             auto removeToPosition = caret.getTextBox().getRelativeCharacters(caretPosition, direction ? -1 : 1);
             caret.getTextBox().removeText(removeToPosition, caretPosition);
-        }
-
-        sf::Clock &getCaretClock() {
-            static sf::Clock clock;
-            return clock;
         }
     }
 
@@ -68,12 +61,17 @@ namespace sftb {
                             // todo - replace
                         }
                         break;
+                    case sf::Keyboard::V:
+                        if (control) {
+                            getTextBox().getPrimaryCaret().insert(sf::Clipboard::getString());
+                        }
+                        break;
                     case sf::Keyboard::X: {
                         if (control) {
                             // cut selection, or line
                             TextBox::Caret &caret = getTextBox().getPrimaryCaret();
                             copySelectedOrLine(caret);
-                            caret.removeSelection();
+                            caret.removeSelectedText();
                         }
                     }
                         break;
@@ -166,17 +164,11 @@ namespace sftb {
     }
 
     void TextBox::Caret::setPosition(const TextBox::Pos &position) {
+        Pos previous = getPosition();
         pos = reference->getCharPos(position);
-        selectionEndPos = nullptr;
+        removeSelection();
         reference->setRedrawRequired();
-        lastPositionChange = getCaretClock().getElapsedTime().asMilliseconds();
-    }
-
-    TextBox::CharPos TextBox::getCharPos(std::weak_ptr<CharPosData> &reference, Line *line, CharInfo *info) {
-        if (reference.expired()) return reference.lock();
-        CharPos pos = std::make_shared<CharPosData>(line, info);
-        reference = pos;
-        return pos;
+        reference->caretStyle->notifyPositionChange(*this, previous);
     }
 
     TextBox::CharPos TextBox::getCharPos(const TextBox::Pos &pos) {
@@ -247,43 +239,57 @@ namespace sftb {
         // todo - draw highlight
     }
 
-    void TextBox::Caret::draw(sf::RenderTarget &target, sf::RenderStates states) const {
-        sf::RectangleShape shape({CARET_WIDTH, reference->getLineHeight()});
+    float TextBox::StandardCaretStyle::getBlinkPercent() {
+        auto time = clock.getElapsedTime().asMilliseconds();
+        return caretBlinkWait > (time - lastPositionChange) ? 0.0f : 2 * std::abs(
+                static_cast<float>(time % caretBlinkPeriod) / static_cast<float>(caretBlinkPeriod) - 0.5f);
+    }
 
-        auto caretPosition = getPosition();
-        auto position = reference->getOffsetOf(caretPosition);
-        position.x -= CARET_WIDTH / 2;
-        position.y += reference->getLineHeight() / 8;
-        shape.setPosition(position);
+    sf::Color TextBox::StandardCaretStyle::getCurrentCaretColor() {
+        float percent = getBlinkPercent();
+        sf::Color first = getFirstColor();
+        sf::Color second = getSecondColor();
 
-        sf::Color first = sf::Color::White;
-        sf::Color second = sf::Color::Transparent;
-
-        auto time = getCaretClock().getElapsedTime().asMilliseconds();
-        float percent = CARET_BLINK_WAIT > (time - lastPositionChange) ? 0.0f : 2 * std::abs(
-                static_cast<float>(time % CARET_BLINK_PERIOD) / CARET_BLINK_PERIOD - 0.5f);
-
-        sf::Color color(
+        return sf::Color(
                 percent * static_cast<float>(second.r - first.r) + static_cast<float>(first.r),
                 percent * static_cast<float>(second.g - first.g) + static_cast<float>(first.g),
                 percent * static_cast<float>(second.b - first.b) + static_cast<float>(first.b),
                 percent * static_cast<float>(second.a - first.a) + static_cast<float>(first.a)
         );
+    }
 
-        shape.setFillColor(color);
+    sf::Vector2f TextBox::StandardCaretStyle::getCaretPosition(const Caret &c) {
+        auto caretPosition = c.getPosition();
+        auto position = c.reference->getOffsetOf(caretPosition);
+        position.x -= caretWidth / 2;
+        position.y += c.reference->getLineHeight() / 8;
+        return position;
+    }
 
+    sf::Vector2f TextBox::StandardCaretStyle::getCaretSize(const Caret &c) {
+        return {caretWidth, c.reference->getLineHeight()};
+    }
+
+    void TextBox::StandardCaretStyle::notifyPositionChange(const Caret &c, const Pos &previousPosition) {
+        lastPositionChange = clock.getElapsedTime().asMilliseconds();
+    }
+
+    void TextBox::StandardCaretStyle::draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &c) {
+        sf::RectangleShape shape(getCaretSize(c));
+        shape.setPosition(getCaretPosition(c));
+        shape.setFillColor(getCurrentCaretColor());
         target.draw(shape, states);
 
-        if (reference->isPositionOnScreen(caretPosition))
-            reference->setRedrawRequired();
+        if (c.reference->isPositionOnScreen(c.getPosition()))
+            c.reference->setRedrawRequired();
     }
 
     TextBox::Pos TextBox::getVisibleStart() const {
-        return getPositionAt(getHorizontalOffset(), getVerticalOffset());
+        return getPositionAt(getTextOffsetHorizontal(), getTextOffsetVertical());
     }
 
     TextBox::Pos TextBox::getVisibleEnd() const {
-        return getPositionAt(sf::Vector2f(getHorizontalOffset(), getVerticalOffset()) + getSize()) + Pos{1, 1};
+        return getPositionAt(sf::Vector2f(getTextOffsetHorizontal(), getTextOffsetVertical()) + getSize()) + Pos{1, 1};
     }
 
     bool TextBox::isPositionOnScreen(const TextBox::Pos &position) const {
@@ -401,7 +407,7 @@ namespace sftb {
 
             while ((endIndex = text.find('\n', endIndex + 1)) != sf::String::InvalidPos) {
                 pos.position = endIndex - startIndex;
-                insertLine(++pos.line, text.substring(startIndex, pos.position));
+                lines.emplace(lines.begin() + ++pos.line, this)->insert(this, text.substring(startIndex, pos.position));
                 startIndex = endIndex + 1;
             }
             pos.line++;
@@ -449,7 +455,7 @@ namespace sftb {
     }
 
     bool TextBox::isOutBounds(bool verify, int x, int y) const {
-        return verify && !(offset.x <= x && x <= getSize().x) || !(offset.y <= y && y <= getSize().y);
+        return !(verify || (offset.x <= x && x <= getSize().x && offset.y <= y && y <= getSize().y));
     }
 
     void TextBox::handleEvent(const sf::Event &event, bool verifyArea) {
@@ -459,7 +465,7 @@ namespace sftb {
             handleInput(event.key.code, false, event.key.control, event.key.shift, event.key.alt);
         } else if (event.type == sf::Event::TextEntered) {
             if (inputHandler->isTextInput(event.text.unicode))
-                // convert carriage return to end of line
+                // convert carriage return to newline
                 handleTextInput(sf::String(event.text.unicode == '\r' ? '\n' : event.text.unicode));
         } else if (event.type == sf::Event::MouseWheelScrolled) {
             if (isOutBounds(verifyArea, event.mouseWheelScroll.x, event.mouseWheelScroll.y)) return;
