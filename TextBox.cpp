@@ -2,187 +2,24 @@
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Window/Event.hpp>
-#include <SFML/Window/Clipboard.hpp>
 #include <ostream>
-#include <cmath>
 #include "TextBox.hpp"
 
 namespace sftb {
-    namespace {
-        void copySelectedOrLine(TextBox::Caret &caret) {
-            if (!caret.hasSelection()) {
-                caret.setPosition({caret.getPosition().line, 0});
-                caret.setSelectionEndPos({caret.getPosition().line + 1, 0});
-            }
-
-            sf::Clipboard::setString(caret.getSelectedText());
-        }
-
-        void removeText(TextBox::Caret &caret, bool direction) {
-            auto caretPosition = caret.getPosition();
-            auto removeToPosition = caret.getTextBox().getRelativeCharacters(caretPosition, direction ? -1 : 1);
-            caret.getTextBox().removeText(removeToPosition, caretPosition);
-        }
+    TextBox::TextBox(sf::Font &font, sf::Vector2f size, std::size_t characterSize, std::shared_ptr<bool> redraw)
+            : font(&font), size(size), characterSize(characterSize),
+              lineHeight(font.getLineSpacing(characterSize)),
+              characterWidth(font.getGlyph('a', characterSize, false).advance),
+              redraw(redraw ? std::move(redraw) : std::make_shared<bool>(true)),
+              scrollBarManager(this->redraw, [box(getReference())]() {
+                  return box->getContentSize();
+              }, [box(getReference())] {
+                  return box->getSize();
+              }), caret(*this) {
+        inputHandler->textBox = getReference();
     }
 
-    std::unique_ptr<InputHandler> InputHandler::standard() {
-        class StandardInputHandler : public InputHandler {
-        public:
-            void handle(sf::Keyboard::Key key, bool pressed, bool control, bool shift, bool alt) override {
-                if (!pressed) return;
-
-                switch (key) {
-                    case sf::Keyboard::A:
-                        if (control) {
-                            TextBox::Caret &caret = getTextBox().getPrimaryCaret();
-
-                            caret.setPosition({0, 0});
-                            caret.setSelectionEndPos(getTextBox().getEndPos());
-                        }
-                        break;
-                    case sf::Keyboard::C:
-                        if (control) {
-                            // copy selection, or line
-                            copySelectedOrLine(getTextBox().getPrimaryCaret());
-                        }
-                        break;
-                    case sf::Keyboard::D:
-                        if (control) {
-                            getTextBox().removeLine(getTextBox().getPrimaryCaret().getPosition().line);
-                        }
-                        break;
-                    case sf::Keyboard::F:
-                        if (control) {
-                            // todo - find
-                        }
-                        break;
-                    case sf::Keyboard::R:
-                        if (control) {
-                            // todo - replace
-                        }
-                        break;
-                    case sf::Keyboard::V:
-                        if (control) {
-                            getTextBox().getPrimaryCaret().insert(sf::Clipboard::getString());
-                        }
-                        break;
-                    case sf::Keyboard::X: {
-                        if (control) {
-                            // cut selection, or line
-                            TextBox::Caret &caret = getTextBox().getPrimaryCaret();
-                            copySelectedOrLine(caret);
-                            caret.removeSelectedText();
-                        }
-                    }
-                        break;
-                    case sf::Keyboard::Y:
-                        if (control) {
-                            // todo - redo
-                        }
-                        break;
-                    case sf::Keyboard::Z:
-                        if (control) {
-                            // todo - undo
-                        }
-                        break;
-                    case sf::Keyboard::Escape:
-                        getTextBox().getPrimaryCaret().removeSelection();
-                        break;
-                    case sf::Keyboard::LBracket:
-                        // todo - smart brackets
-                        break;
-                    case sf::Keyboard::RBracket:
-                        // todo - smart brackets
-                        break;
-                    case sf::Keyboard::Quote:
-                        // todo - smart brackets
-                        break;
-                    case sf::Keyboard::Backspace:
-                        // remove character to left
-                        removeText(getTextBox().getPrimaryCaret(), true);
-                        // todo - smart brackets (ignore if highlighted)
-                        break;
-                    case sf::Keyboard::PageUp:
-                        // todo
-                        break;
-                    case sf::Keyboard::PageDown:
-                        // todo
-                        break;
-                    case sf::Keyboard::End: {
-                        // move caret to end of line
-                        TextBox::Caret &caret = getTextBox().getPrimaryCaret();
-                        auto caretLine = caret.getPosition().line;
-                        caret.setPosition({caretLine, getTextBox().getLineLength(caretLine)});
-                    }
-                        break;
-                    case sf::Keyboard::Home: {
-                        // move caret to start of line
-                        TextBox::Caret &caret = getTextBox().getPrimaryCaret();
-                        caret.setPosition({caret.getPosition().line, 0});
-                    }
-                        break;
-                    case sf::Keyboard::Delete:
-                        // remove character to right
-                        removeText(getTextBox().getPrimaryCaret(), false);
-                        break;
-                    case sf::Keyboard::Left: {
-                        TextBox::Caret &caret = getTextBox().getPrimaryCaret();
-                        if (shift)
-                            caret.setSelectionEndPos(
-                                    getTextBox().getRelativeCharacters(caret.getSelectionEndPos(), -1));
-                        else caret.setPosition(getTextBox().getRelativeCharacters(caret.getPosition(), -1));
-                    }
-                        break;
-                    case sf::Keyboard::Right: {
-                        TextBox::Caret &caret = getTextBox().getPrimaryCaret();
-                        if (shift)
-                            caret.setSelectionEndPos(getTextBox().getRelativeCharacters(caret.getSelectionEndPos(), 1));
-                        else caret.setPosition(getTextBox().getRelativeCharacters(caret.getPosition(), 1));
-                    }
-                        break;
-                    case sf::Keyboard::Up: {
-                        TextBox::Caret &caret = getTextBox().getPrimaryCaret();
-                        if (shift)
-                            caret.setSelectionEndPos(
-                                    getTextBox().getVisibleRelativeLine(caret.getSelectionEndPos(), -1));
-                        else caret.setPosition(getTextBox().getVisibleRelativeLine(caret.getPosition(), -1));
-                    }
-                        break;
-                    case sf::Keyboard::Down: {
-                        TextBox::Caret &caret = getTextBox().getPrimaryCaret();
-                        if (shift)
-                            caret.setSelectionEndPos(
-                                    getTextBox().getVisibleRelativeLine(caret.getSelectionEndPos(), 1));
-                        else caret.setPosition(getTextBox().getVisibleRelativeLine(caret.getPosition(), 1));
-                    }
-                    default:
-                        break;
-                }
-            }
-        };
-        return std::make_unique<StandardInputHandler>();
-    }
-
-    void TextBox::Caret::setPosition(const TextBox::Pos &position) {
-        Pos previous = getPosition();
-        pos = reference->getCharPos(position);
-        removeSelection();
-        reference->setRedrawRequired();
-        reference->caretStyle->notifyPositionChange(*this, previous);
-    }
-
-    TextBox::CharPos TextBox::getCharPos(const TextBox::Pos &pos) {
-        if (pos == getEndPos()) return endCharPosDataHolder.getCharPos(nullptr, nullptr);
-
-        Line &line = getLine(pos.line);
-        if (pos.position == line.getNumberCharacters())
-            return line.endLineCharPosDataHolder.getCharPos(&line, nullptr);
-
-        CharInfo &info = line.getCharInfo(pos.position);
-        return info.referenceHolder.getCharPos(&line, &info);
-    }
-
-    bool TextBox::LineLengthCompare::operator()(TextBox::Line *left, TextBox::Line *right) const {
+    bool TextBox::LineLengthCompare::operator()(Line *left, Line *right) const {
         return left->getNumberCharacters() < right->getNumberCharacters();
     }
 
@@ -239,64 +76,26 @@ namespace sftb {
         // todo - draw highlight
     }
 
-    float TextBox::StandardCaretStyle::getBlinkPercent() {
-        auto time = clock.getElapsedTime().asMilliseconds();
-        return caretBlinkWait > (time - lastPositionChange) ? 0.0f : 2 * std::abs(
-                static_cast<float>(time % caretBlinkPeriod) / static_cast<float>(caretBlinkPeriod) - 0.5f);
+    sf::Vector2f TextBox::getContentSize() const {
+        return offset + sf::Vector2f{
+                getLongestLine().getNumberCharacters() * getCharacterWidth(),
+                getNumberLines() * getLineHeight()
+        };
     }
 
-    sf::Color TextBox::StandardCaretStyle::getCurrentCaretColor() {
-        float percent = getBlinkPercent();
-        sf::Color first = getFirstColor();
-        sf::Color second = getSecondColor();
-
-        return sf::Color(
-                percent * static_cast<float>(second.r - first.r) + static_cast<float>(first.r),
-                percent * static_cast<float>(second.g - first.g) + static_cast<float>(first.g),
-                percent * static_cast<float>(second.b - first.b) + static_cast<float>(first.b),
-                percent * static_cast<float>(second.a - first.a) + static_cast<float>(first.a)
-        );
-    }
-
-    sf::Vector2f TextBox::StandardCaretStyle::getCaretPosition(const Caret &c) {
-        auto caretPosition = c.getPosition();
-        auto position = c.reference->getOffsetOf(caretPosition);
-        position.x -= caretWidth / 2;
-        position.y += c.reference->getLineHeight() / 8;
-        return position;
-    }
-
-    sf::Vector2f TextBox::StandardCaretStyle::getCaretSize(const Caret &c) {
-        return {caretWidth, c.reference->getLineHeight()};
-    }
-
-    void TextBox::StandardCaretStyle::notifyPositionChange(const Caret &c, const Pos &previousPosition) {
-        lastPositionChange = clock.getElapsedTime().asMilliseconds();
-    }
-
-    void TextBox::StandardCaretStyle::draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &c) {
-        sf::RectangleShape shape(getCaretSize(c));
-        shape.setPosition(getCaretPosition(c));
-        shape.setFillColor(getCurrentCaretColor());
-        target.draw(shape, states);
-
-        if (c.reference->isPositionOnScreen(c.getPosition()))
-            c.reference->setRedrawRequired();
-    }
-
-    TextBox::Pos TextBox::getVisibleStart() const {
+    Pos TextBox::getVisibleStart() const {
         return getPositionAt(getTextOffsetHorizontal(), getTextOffsetVertical());
     }
 
-    TextBox::Pos TextBox::getVisibleEnd() const {
+    Pos TextBox::getVisibleEnd() const {
         return getPositionAt(sf::Vector2f(getTextOffsetHorizontal(), getTextOffsetVertical()) + getSize()) + Pos{1, 1};
     }
 
-    bool TextBox::isPositionOnScreen(const TextBox::Pos &position) const {
+    bool TextBox::isPositionOnScreen(const Pos &position) const {
         return getVisibleStart() <= position && position <= getVisibleEnd();
     }
 
-    TextBox::Pos TextBox::getRelativeCharacters(TextBox::Pos pos, int characters) const {
+    Pos TextBox::getRelativeCharacters(Pos pos, int characters) const {
         if (characters < 0) {
             characters = -characters;
             do {
@@ -335,31 +134,74 @@ namespace sftb {
         return pos;
     }
 
-    namespace {
-        void order(TextBox::Pos &first, TextBox::Pos &second) {
-            if (second < first)
-                std::swap(first, second);
+    Pos TextBox::getRelativeLine(Pos pos, int lineAmount) const {
+        if (lineAmount > 0) {
+            pos.line += lineAmount;
+            if (pos.line >= getNumberLines()) return getEndPos();
+        } else {
+            lineAmount = -lineAmount;
+            if (lineAmount == pos.line)
+                pos.line = 0;
+            else if (lineAmount > pos.line) return getStartPos();
+            else pos.line -= lineAmount;
+        }
+        pos.position = std::min(pos.position, getLineLength(pos.line));
+        return pos;
+    }
+
+    Pos TextBox::getVisibleRelativeLine(Pos pos, int lineAmount) const {
+        Pos relativePosition = getRelativeLine(pos, lineAmount);
+        // if getRelativeLine needs to modify the position, use that value instead
+        if (relativePosition.position != pos.position) return relativePosition;
+
+        auto line = relativePosition.line;
+        float xPos = getOffsetOf(pos).x;
+        auto position = getPositionAt({xPos, line * getLineHeight()}).position;
+        return {line, std::min(position, getLineLength(line))};
+    }
+
+    std::size_t TextBox::getLineLength(std::size_t line) const {
+        return line == getNumberLines() ? 0 : getLine(line).getNumberCharacters();
+    }
+
+    CharPos TextBox::getCharPos(const Pos &pos) {
+        if (pos == getEndPos()) return endCharPosDataHolder.getCharPos(nullptr, nullptr);
+
+        Line &line = getLine(pos.line);
+        if (pos.position == line.getNumberCharacters())
+            return line.endLineCharPosDataHolder.getCharPos(&line, nullptr);
+
+        CharInfo &info = line.getCharInfo(pos.position);
+        return info.referenceHolder.getCharPos(&line, &info);
+    }
+
+    void TextBox::CharPosDataHolder::transfer(const CharPos &pos) {
+        if (active()) {
+            reference.lock()->setRelative(pos);
+            reference.reset();
         }
     }
 
-    sf::String TextBox::getLineContents(std::size_t lineNumber, std::size_t start, std::size_t end) const {
-        if (lineNumber == getNumberLines()) return "";
+    CharPos TextBox::CharPosDataHolder::getCharPos(Line *line, CharInfo *info) {
+        if (active()) return reference.lock();
+        CharPos charPos = std::make_shared<CharPosData>(line, info);
+        reference = charPos;
+        return charPos;
+    }
 
-        const Line &line = getLine(lineNumber);
-        // ensure start < end
-        if (end < start)
-            std::swap(start, end);
-        // ensure start and end within bounds
-        start = std::min(start, line.getNumberCharacters());
-        end = std::min(end, line.getNumberCharacters());
+    void TextBox::CharPosDataHolder::updateLine(Line &line) {
+        if (active()) reference.lock()->updateLine(line.getReference());
+    }
 
-        sf::String str;
-        while (start < end) {
-            str += line.getCharInfo(start).getChar();
-            start++;
+    void TextBox::CharPosDataHolder::updateCharInfo(CharInfo *info) {
+        if (active()) reference.lock()->updateCharInfo(info);
+    }
+
+    namespace {
+        void order(Pos &first, Pos &second) {
+            if (second < first)
+                std::swap(first, second);
         }
-
-        return str;
     }
 
     sf::String TextBox::getTextFrom(Pos first, Pos second) const {
@@ -383,11 +225,31 @@ namespace sftb {
         return str;
     }
 
+    sf::String TextBox::getLineContents(std::size_t lineNumber, std::size_t start, std::size_t end) const {
+        if (lineNumber == getNumberLines()) return "";
+
+        const Line &line = getLine(lineNumber);
+        // ensure start < end
+        if (end < start)
+            std::swap(start, end);
+        // ensure start and end within bounds
+        start = std::min(start, line.getNumberCharacters());
+        end = std::min(end, line.getNumberCharacters());
+
+        sf::String str;
+        while (start < end) {
+            str += line.getCharInfo(start).getChar();
+            start++;
+        }
+
+        return str;
+    }
+
 #define ASSERT_POSITION(pos) \
     assert((pos).line <= getNumberLines() && #pos " line out of bounds"); \
     assert((pos).position <= getLineLength((pos).line) && #pos " position out of bounds");
 
-    TextBox::Pos TextBox::insertText(Pos pos, const sf::String &text) {
+    Pos TextBox::insertText(Pos pos, const sf::String &text) {
         ASSERT_POSITION(pos)
         setRedrawRequired();
 
@@ -419,13 +281,13 @@ namespace sftb {
         return {pos.line, pos.position + text.getSize() - startIndex};
     }
 
-    TextBox::Pos TextBox::insertLine(unsigned line, const sf::String &string) {
+    Pos TextBox::insertLine(unsigned line, const sf::String &string) {
         assert(line <= getNumberLines() && "line out of bounds");
         lines.emplace(lines.begin() + line, this);
         return insertText({line, 0}, string);
     }
 
-    void TextBox::removeText(TextBox::Pos from, TextBox::Pos to) {
+    void TextBox::removeText(Pos from, Pos to) {
         if (from == to) return;
         order(from, to);
         ASSERT_POSITION(from)
@@ -452,6 +314,28 @@ namespace sftb {
             getLine(to.line).move(this, getLine(from.line), 0, from.position);
             removeLine(to.line);
         }
+    }
+
+    void TextBox::removeLine(unsigned int line) {
+        assert(line < getNumberLines() && "line out of bounds");
+        getLine(line).prepareRemoveAll(getTransferPos(line, line + 1));
+        lines.erase(lines.begin() + line);
+    }
+
+    void TextBox::removeLines(unsigned int start, unsigned int end) {
+        assert(start <= getNumberLines() &&
+               "start out of bounds"); // could omit check (implied by checks below) but may help debugging
+        assert(end <= getNumberLines() && "end out of bounds");
+        assert(start <= end && "start must be before end");
+        // todo - try and optimize -- iterating over each removed character from each removed line in case
+        //  transfer is required is fairly inefficient
+        CharPos transfer = getTransferPos(start, end);
+        auto iterStart = lines.begin() + start;
+        auto iterEnd = lines.begin() + end;
+        for (auto iter = iterStart; iter < iterEnd; iter++) {
+            iter->prepareRemoveAll(transfer);
+        }
+        lines.erase(iterStart, iterEnd);
     }
 
     bool TextBox::isOutBounds(bool verify, int x, int y) const {
@@ -519,7 +403,81 @@ namespace sftb {
         }
     }
 
-    std::ostream &operator<<(std::ostream &out, const TextBox::Pos &position) {
-        return out << "(" << position.line << ", " << position.position << ")";
+    std::size_t TextBox::getLineIndex(const Line *line) const {
+        assert(line != nullptr && "line is nullptr");
+        // same logic as CharInfo getCharacterIndex
+        return line - &*lines.begin();
+    }
+
+    void Line::remove(TextBox *box, std::size_t start, std::size_t end) {
+        auto endIndex = std::min(end, characters.size());
+
+        CharPos transferPos;
+
+        if (start == 0) {
+            auto lineIndex = box->getLineIndex(this);
+            if (lineIndex == 0) {
+                // end character if exists, or end of line
+                transferPos = box->getCharPos({lineIndex, endIndex});
+            } else {
+                Line &previousLine = box->getLine(lineIndex - 1);
+                transferPos = previousLine.endLineCharPosDataHolder.getCharPos(&previousLine, nullptr);
+            }
+        } else {
+            CharInfo &info = characters[start - 1];
+            transferPos = info.referenceHolder.getCharPos(this, &info);
+        }
+
+        auto iterStart = characters.begin() + start;
+        auto iterEnd = characters.begin() + endIndex;
+        prepareRemove(transferPos, iterStart, iterEnd);
+
+        characters.erase(iterStart, iterEnd);
+        updateLineLength(box);
+    }
+
+    void Line::move(TextBox *box, Line &line, std::size_t start, std::size_t insertPosition) {
+        assert(start <= getNumberCharacters() && "start out of bounds");
+        assert(insertPosition <= line.getNumberCharacters() && "insert position out of bounds");
+        // todo - clean up
+
+        // move characters (at and after start) to other line at insertPosition
+        auto iterFirstCharacter = characters.begin() + start;
+        auto iterLastCharacter = characters.end();
+
+        // update character line
+        auto iter = iterFirstCharacter;
+        while (iter < characters.end()) {
+            iter->referenceHolder.updateLine(line);
+            iter++;
+        }
+
+        line.characters.insert(line.characters.begin() + insertPosition,
+                               std::make_move_iterator(iterFirstCharacter),
+                               std::make_move_iterator(iterLastCharacter));
+        characters.erase(iterFirstCharacter, iterLastCharacter);
+        line.updateLineLength(box);
+        updateLineLength(box);
+    }
+
+    Line &TextBox::getOrInsertLine(std::size_t line) {
+        assert(line <= getNumberLines() && "line out of bounds");
+        return getNumberLines() == line ? *lines.emplace(lines.begin() + line, this) : lines[line];
+    }
+
+    void Line::insert(TextBox *box, const sf::String &string, std::size_t index) {
+        assert(index <= getNumberCharacters() && "index out of bounds");
+        for (char c : string) {
+            // todo - optimize (will push characters back multiple times)
+            characters.emplace(characters.begin() + index++, c);
+        }
+        updateLineLength(box);
+    }
+
+    void Line::prepareRemove(const CharPos &transferPos, const std::vector<CharInfo>::iterator &start,
+                                      const std::vector<CharInfo>::iterator &end) {
+        for (auto iter = start; iter < end; iter++) {
+            iter->referenceHolder.transfer(transferPos);
+        }
     }
 }

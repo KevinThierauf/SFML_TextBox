@@ -2,6 +2,7 @@
 #define SFML_TEXTBOX_SCROLLBAR_HPP
 
 #include <SFML/Graphics/Drawable.hpp>
+#include <SFML/Graphics/Color.hpp>
 #include <functional>
 #include <utility>
 #include "Reference.hpp"
