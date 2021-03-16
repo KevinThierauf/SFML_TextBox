@@ -30,7 +30,6 @@ namespace sftb {
 
     void TextBox::removeHighlight(Highlight *highlight) {
         assert(highlight != nullptr && "highlight is nullptr");
-        assert(!highlight->isRemoved() && "highlight is removed");
         highlights.erase(highlight->iterator);
     }
 

@@ -51,8 +51,8 @@ namespace sftb {
     public:
         Highlight(const Highlight &) = delete;
         Highlight &operator=(const Highlight &) = delete;
-        Highlight(Highlight &&) = delete;
-        Highlight &operator=(Highlight &&) = delete;
+        Highlight(Highlight &&) = default;
+        Highlight &operator=(Highlight &&) = default;
 
         [[nodiscard]] TextBox &getTextBox() const {
             return *box;
@@ -78,12 +78,6 @@ namespace sftb {
         }
 
         void setEnd(const Pos &e);
-
-        void remove();
-
-        [[nodiscard]] bool isRemoved() const {
-            return box == nullptr;
-        }
     };
 
     class HighlightHandle {
@@ -93,36 +87,31 @@ namespace sftb {
         explicit HighlightHandle(Highlight *highlight) : highlight(highlight) {
         }
 
-        ~HighlightHandle() {
-            if (highlight)
-                highlight->remove();
-        }
+        ~HighlightHandle();
 
-        [[nodiscard]] Highlight *release() {
+        Highlight *release() {
             Highlight *tmp = highlight;
             highlight = nullptr;
             return tmp;
         }
+
+        void remove();
 
         void setHighlight(Highlight *h) {
             highlight = h;
         }
 
         Highlight *operator->() {
-            assert(highlight != nullptr && "highlight is nullptr");
+            assert(highlight != nullptr && "highlight is empty");
             return highlight;
         }
 
-        [[nodiscard]] bool empty() const {
-            return highlight;
-        }
-
-        [[nodiscard]] bool removed() const {
-            return empty() || highlight->isRemoved();
+        [[nodiscard]] bool isRemoved() const {
+            return highlight == nullptr;
         }
 
         operator bool() const {
-            return removed();
+            return isRemoved();
         }
     };
 }

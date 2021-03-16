@@ -65,8 +65,13 @@ namespace sftb {
         end = box->getCharPos(e);
     }
 
-    void Highlight::remove() {
-        if (isRemoved()) return;
-        box->removeHighlight(this);
+    HighlightHandle::~HighlightHandle() {
+        remove();
+    }
+
+    void HighlightHandle::remove() {
+        if(isRemoved()) return;
+        highlight->getTextBox().removeHighlight(highlight);
+        highlight = nullptr;
     }
 }

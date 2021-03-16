@@ -117,8 +117,6 @@ namespace sftb {
             return start == 0 ? getCharPos({end, getLineLength(end)}) :
                    getCharPos({start - 1, getLineLength(start - 1)});
         }
-
-        void removeHighlight(Highlight *highlight);
     protected:
         void draw(sf::RenderTarget &target, sf::RenderStates states) const override;
     public:
@@ -315,6 +313,8 @@ namespace sftb {
         HighlightHandle handledHighlight(const Pos &first, const Pos &second, std::shared_ptr<Highlighter> highlighter) {
             return HighlightHandle(highlight(first, second, std::move(highlighter)));
         }
+
+        void removeHighlight(Highlight *highlight);
     };
 
     namespace detail {

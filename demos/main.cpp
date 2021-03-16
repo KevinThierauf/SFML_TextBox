@@ -26,7 +26,7 @@ int main() {
     sftb::TextBox box{font, {WIDTH, HEIGHT}};
     const unsigned backgroundBrightness = 60;
     box.setBackgroundColor(sf::Color(backgroundBrightness, backgroundBrightness, backgroundBrightness));
-    box.insertText({0,0}, "Hello, World!");
+    box.insertText({0, 0}, "Hello, World!");
     box.insertLine(1, "0123456789");
 
     // create window
@@ -41,7 +41,7 @@ int main() {
             // handle event
             if (event.type == sf::Event::Closed)
                 window.close();
-            else if(event.type == sf::Event::Resized) {
+            else if (event.type == sf::Event::Resized) {
                 // update draw area to reflect updated size
                 window.setView(sf::View(sf::FloatRect(0.0f, 0.0f, event.size.width, event.size.height)));
                 box.setSize(sf::Vector2f(event.size.width, event.size.height));
