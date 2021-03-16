@@ -17,8 +17,7 @@ namespace sftb {
     public:
         virtual ~Highlighter() = default;
 
-        virtual void highlight(sf::RenderTarget &target, sf::RenderStates states, const TextBox &box, const Pos &first,
-                               const Pos &second) = 0;
+        virtual void highlight(sf::RenderTarget &target, sf::RenderStates states, const TextBox &box, const Pos &first, const Pos &second) = 0;
     };
 
     class ColorHighlighter : public Highlighter {
@@ -27,8 +26,7 @@ namespace sftb {
     public:
         explicit ColorHighlighter(const sf::Color &highlightColor) : highlightColor(highlightColor) {}
 
-        void highlight(sf::RenderTarget &target, sf::RenderStates states, const TextBox &box, const Pos &first,
-                       const Pos &second) override;
+        void highlight(sf::RenderTarget &target, sf::RenderStates states, const TextBox &box, const Pos &first, const Pos &second) override;
 
         [[nodiscard]] const sf::Color &getHighlightColor() const {
             return highlightColor;
@@ -53,8 +51,8 @@ namespace sftb {
     public:
         Highlight(const Highlight &) = delete;
         Highlight &operator=(const Highlight &) = delete;
-        Highlight(Highlight &&) = default;
-        Highlight &operator=(Highlight &&) = default;
+        Highlight(Highlight &&) = delete;
+        Highlight &operator=(Highlight &&) = delete;
 
         [[nodiscard]] TextBox &getTextBox() const {
             return *box;
