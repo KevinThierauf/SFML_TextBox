@@ -26,7 +26,7 @@ namespace sftb {
     }
 
     Pos Caret::getSelectionEndPos() const {
-        return reference->getPositionOfChar(selectionEndPos);
+        return selectionEndPos == nullptr ? getPosition() : reference->getPositionOfChar(selectionEndPos);
     }
 
     void Caret::setSelectionEndPos(const Pos &position) {
@@ -37,8 +37,10 @@ namespace sftb {
     }
 
     void Caret::removeSelectedText() {
-        if (hasSelection())
+        if (hasSelection()) {
             reference->removeText(getPosition(), getSelectionEndPos());
+            removeSelection();
+        }
     }
 
     sf::String Caret::getSelectedText() const {

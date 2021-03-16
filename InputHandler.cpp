@@ -15,6 +15,11 @@ namespace sftb {
         }
 
         void removeText(Caret &caret, bool direction) {
+            if(caret.hasSelection()) {
+                caret.removeSelectedText();
+                return;
+            }
+
             auto caretPosition = caret.getPosition();
             auto removeToPosition = caret.getTextBox().getRelativeCharacters(caretPosition, direction ? -1 : 1);
             caret.getTextBox().removeText(removeToPosition, caretPosition);

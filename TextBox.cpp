@@ -3,7 +3,6 @@
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Window/Event.hpp>
 #include <ostream>
-#include <iostream>
 #include "TextBox.hpp"
 
 namespace sftb {
