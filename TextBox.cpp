@@ -175,26 +175,28 @@ namespace sftb {
         return info.referenceHolder.getCharPos(&line, &info);
     }
 
-    void CharPosDataHolder::transfer(const CharPos &pos) {
-        if (active()) {
-            reference.lock()->setRelative(pos);
-            reference.reset();
+    namespace detail {
+        void CharPosDataHolder::transfer(const CharPos &pos) {
+            if (active()) {
+                reference.lock()->setRelative(pos);
+                reference.reset();
+            }
         }
-    }
 
-    CharPos CharPosDataHolder::getCharPos(Line *line, CharInfo *info) {
-        if (active()) return reference.lock();
-        CharPos charPos = std::make_shared<CharPosData>(line, info);
-        reference = charPos;
-        return charPos;
-    }
+        CharPos CharPosDataHolder::getCharPos(Line *line, CharInfo *info) {
+            if (active()) return reference.lock();
+            CharPos charPos = std::make_shared<CharPosData>(line, info);
+            reference = charPos;
+            return charPos;
+        }
 
-    void CharPosDataHolder::updateLine(Line &line) {
-        if (active()) reference.lock()->updateLine(line.getReference());
-    }
+        void CharPosDataHolder::updateLine(Line &line) {
+            if (active()) reference.lock()->updateLine(line.getReference());
+        }
 
-    void CharPosDataHolder::updateCharInfo(CharInfo *info) {
-        if (active()) reference.lock()->updateCharInfo(info);
+        void CharPosDataHolder::updateCharInfo(CharInfo *info) {
+            if (active()) reference.lock()->updateCharInfo(info);
+        }
     }
 
     namespace {
@@ -409,75 +411,77 @@ namespace sftb {
         return line - &*lines.begin();
     }
 
-    void Line::remove(TextBox *box, std::size_t start, std::size_t end) {
-        auto endIndex = std::min(end, characters.size());
-
-        CharPos transferPos;
-
-        if (start == 0) {
-            auto lineIndex = box->getLineIndex(this);
-            if (lineIndex == 0) {
-                // end character if exists, or end of line
-                transferPos = box->getCharPos({lineIndex, endIndex});
-            } else {
-                Line &previousLine = box->getLine(lineIndex - 1);
-                transferPos = previousLine.endLineCharPosDataHolder.getCharPos(&previousLine, nullptr);
-            }
-        } else {
-            CharInfo &info = characters[start - 1];
-            transferPos = info.referenceHolder.getCharPos(this, &info);
-        }
-
-        auto iterStart = characters.begin() + start;
-        auto iterEnd = characters.begin() + endIndex;
-        prepareRemove(transferPos, iterStart, iterEnd);
-
-        characters.erase(iterStart, iterEnd);
-        updateLineLength(box);
-    }
-
-    void Line::move(TextBox *box, Line &line, std::size_t start, std::size_t insertPosition) {
-        assert(start <= getNumberCharacters() && "start out of bounds");
-        assert(insertPosition <= line.getNumberCharacters() && "insert position out of bounds");
-        // todo - clean up
-
-        // move characters (at and after start) to other line at insertPosition
-        auto iterFirstCharacter = characters.begin() + start;
-        auto iterLastCharacter = characters.end();
-
-        // update character line
-        auto iter = iterFirstCharacter;
-        while (iter < characters.end()) {
-            iter->referenceHolder.updateLine(line);
-            iter++;
-        }
-
-        line.characters.insert(line.characters.begin() + insertPosition,
-                               std::make_move_iterator(iterFirstCharacter),
-                               std::make_move_iterator(iterLastCharacter));
-        characters.erase(iterFirstCharacter, iterLastCharacter);
-        line.updateLineLength(box);
-        updateLineLength(box);
-    }
-
-    Line &TextBox::getOrInsertLine(std::size_t line) {
+    detail::Line &TextBox::getOrInsertLine(std::size_t line) {
         assert(line <= getNumberLines() && "line out of bounds");
         return getNumberLines() == line ? *lines.emplace(lines.begin() + line, this) : lines[line];
     }
 
-    void Line::insert(TextBox *box, const sf::String &string, std::size_t index) {
-        assert(index <= getNumberCharacters() && "index out of bounds");
-        for (char c : string) {
-            // todo - optimize (will push characters back multiple times)
-            characters.emplace(characters.begin() + index++, c);
-        }
-        updateLineLength(box);
-    }
+    namespace detail {
+        void Line::remove(TextBox *box, std::size_t start, std::size_t end) {
+            auto endIndex = std::min(end, characters.size());
 
-    void Line::prepareRemove(const CharPos &transferPos, const std::vector<CharInfo>::iterator &start,
-                                      const std::vector<CharInfo>::iterator &end) {
-        for (auto iter = start; iter < end; iter++) {
-            iter->referenceHolder.transfer(transferPos);
+            CharPos transferPos;
+
+            if (start == 0) {
+                auto lineIndex = box->getLineIndex(this);
+                if (lineIndex == 0) {
+                    // end character if exists, or end of line
+                    transferPos = box->getCharPos({lineIndex, endIndex});
+                } else {
+                    Line &previousLine = box->getLine(lineIndex - 1);
+                    transferPos = previousLine.endLineCharPosDataHolder.getCharPos(&previousLine, nullptr);
+                }
+            } else {
+                CharInfo &info = characters[start - 1];
+                transferPos = info.referenceHolder.getCharPos(this, &info);
+            }
+
+            auto iterStart = characters.begin() + start;
+            auto iterEnd = characters.begin() + endIndex;
+            prepareRemove(transferPos, iterStart, iterEnd);
+
+            characters.erase(iterStart, iterEnd);
+            updateLineLength(box);
+        }
+
+        void Line::move(TextBox *box, Line &line, std::size_t start, std::size_t insertPosition) {
+            assert(start <= getNumberCharacters() && "start out of bounds");
+            assert(insertPosition <= line.getNumberCharacters() && "insert position out of bounds");
+            // todo - clean up
+
+            // move characters (at and after start) to other line at insertPosition
+            auto iterFirstCharacter = characters.begin() + start;
+            auto iterLastCharacter = characters.end();
+
+            // update character line
+            auto iter = iterFirstCharacter;
+            while (iter < characters.end()) {
+                iter->referenceHolder.updateLine(line);
+                iter++;
+            }
+
+            line.characters.insert(line.characters.begin() + insertPosition,
+                                   std::make_move_iterator(iterFirstCharacter),
+                                   std::make_move_iterator(iterLastCharacter));
+            characters.erase(iterFirstCharacter, iterLastCharacter);
+            line.updateLineLength(box);
+            updateLineLength(box);
+        }
+
+        void Line::insert(TextBox *box, const sf::String &string, std::size_t index) {
+            assert(index <= getNumberCharacters() && "index out of bounds");
+            for (char c : string) {
+                // todo - optimize (will push characters back multiple times)
+                characters.emplace(characters.begin() + index++, c);
+            }
+            updateLineLength(box);
+        }
+
+        void Line::prepareRemove(const CharPos &transferPos, const std::vector<CharInfo>::iterator &start,
+                                 const std::vector<CharInfo>::iterator &end) {
+            for (auto iter = start; iter < end; iter++) {
+                iter->referenceHolder.transfer(transferPos);
+            }
         }
     }
 }

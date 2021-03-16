@@ -10,68 +10,75 @@
 #include <cassert>
 
 namespace sftb {
-    class Line;
-    class CharInfo;
+    namespace detail {
+        class Line;
+        class CharInfo;
+        class CharPosDataHolder;
 
-    struct CharPosData {
-        friend class TextBox;
-        friend class CharPosDataHolder;
-    public:
-        struct Absolute {
-            // nullptr line indicates end of text position
-            // any other nullptr info indicates end of line
-            Line *line;
-            CharInfo *info;
+        class CharPosData {
+            friend class TextBox;
+            friend class detail::CharPosDataHolder;
+        private:
+            using Line = detail::Line;
+            using CharInfo = detail::CharInfo;
+        public:
+            struct Absolute {
+                // nullptr line indicates end of text position
+                // any other nullptr info indicates end of line
+                Line *line;
+                CharInfo *info;
+            };
+        private:
+            using Relative = std::shared_ptr<CharPosData>;
+
+            mutable std::variant<Absolute, Relative> locationInfo;
+
+            [[nodiscard]] Absolute &getAbsolute() const {
+                assert(isAbsolute() && "location is not absolute");
+                return std::get<Absolute>(locationInfo);
+            }
+
+            [[nodiscard]] Relative &getRelative() const {
+                assert(isRelative() && "location is not relative");
+                return std::get<Relative>(locationInfo);
+            }
+
+            [[nodiscard]] bool isAbsolute() const {
+                return locationInfo.index() == 0;
+            }
+
+            [[nodiscard]] bool isRelative() const {
+                return !isAbsolute();
+            }
+
+            void reduceRelative() const;
+
+            void updateLine(Line *line) {
+                // not getLinkedAbsolute() -- relative is only used to retain references, should never be updated
+                getAbsolute().line = line;
+            }
+
+            void updateCharInfo(CharInfo *info) {
+                getAbsolute().info = info;
+            }
+
+        public:
+            CharPosData(Line *line, CharInfo *info) : locationInfo(Absolute{line, info}) {}
+
+            CharPosData(const CharPosData &) = delete;
+            CharPosData &operator=(const CharPosData &) = delete;
+            CharPosData(CharPosData &&) = delete;
+            CharPosData &operator=(CharPosData &&) = delete;
+
+            void setRelative(std::shared_ptr<CharPosData> pointer) {
+                locationInfo = std::move(pointer);
+            }
+
+            const Absolute &getLinkedAbsolute() const;
+
+            [[nodiscard]] std::size_t getCharacterIndex() const;
         };
-    private:
-        using Relative = std::shared_ptr<CharPosData>;
-
-        mutable std::variant<Absolute, Relative> locationInfo;
-
-        [[nodiscard]] Absolute &getAbsolute() const {
-            assert(isAbsolute() && "location is not absolute");
-            return std::get<Absolute>(locationInfo);
-        }
-
-        [[nodiscard]] Relative &getRelative() const {
-            assert(isRelative() && "location is not relative");
-            return std::get<Relative>(locationInfo);
-        }
-
-        [[nodiscard]] bool isAbsolute() const {
-            return locationInfo.index() == 0;
-        }
-
-        [[nodiscard]] bool isRelative() const {
-            return !isAbsolute();
-        }
-
-        void reduceRelative() const;
-
-        void updateLine(Line *line) {
-            // not getLinkedAbsolute() -- relative is only used to retain references, should never be updated
-            getAbsolute().line = line;
-        }
-
-        void updateCharInfo(CharInfo *info) {
-            getAbsolute().info = info;
-        }
-    public:
-        CharPosData(Line *line, CharInfo *info) : locationInfo(Absolute{line, info}) {}
-
-        CharPosData(const CharPosData &) = delete;
-        CharPosData &operator=(const CharPosData &) = delete;
-        CharPosData(CharPosData &&) = delete;
-        CharPosData &operator=(CharPosData &&) = delete;
-
-        void setRelative(std::shared_ptr<CharPosData> pointer) {
-            locationInfo = std::move(pointer);
-        }
-
-        const Absolute &getLinkedAbsolute() const;
-
-        [[nodiscard]] std::size_t getCharacterIndex() const;
-    };
+    }
 
     /**
      * A relative position within a TextBox, relative to a specific character.
@@ -91,7 +98,7 @@ namespace sftb {
      * CharPos will still reference the same 'E', wherever it is now located.
      * If the 'E' is removed, the CharPos will reference the 'H', instead.
      */
-    using CharPos = std::shared_ptr<CharPosData>;
+    using CharPos = std::shared_ptr<detail::CharPosData>;
 }
 
 #endif //SFML_TEXTBOX_CHARPOS_HPP

@@ -25,36 +25,45 @@ namespace sf {
 }
 
 namespace sftb {
-    class CharPosDataHolder {
-    private:
-        std::weak_ptr<CharPosData> reference;
+    namespace detail {
+        class CharPosDataHolder {
+        private:
+            std::weak_ptr<CharPosData> reference;
 
-    public:
-        CharPosDataHolder() = default;
-        CharPosDataHolder(const CharPosDataHolder &) = delete;
-        CharPosDataHolder &operator=(const CharPosDataHolder &) = delete;
-        CharPosDataHolder(CharPosDataHolder &&) = default;
-        CharPosDataHolder &operator=(CharPosDataHolder &&) = default;
+        public:
+            CharPosDataHolder() = default;
+            CharPosDataHolder(const CharPosDataHolder &) = delete;
+            CharPosDataHolder &operator=(const CharPosDataHolder &) = delete;
+            CharPosDataHolder(CharPosDataHolder &&) = default;
+            CharPosDataHolder &operator=(CharPosDataHolder &&) = default;
 
-        ~CharPosDataHolder() {
-            assert(!active() && "CharPosDataHolder info was not transferred");
-        }
+            ~CharPosDataHolder() {
+                assert(!active() && "CharPosDataHolder info was not transferred");
+            }
 
-        void transfer(const CharPos &pos);
+            void transfer(const CharPos &pos);
 
-        [[nodiscard]] bool active() const {
-            return !reference.expired();
-        }
+            [[nodiscard]] bool active() const {
+                return !reference.expired();
+            }
 
-        void updateLine(Line &line);
-        void updateCharInfo(CharInfo *info);
-        CharPos getCharPos(Line *line, CharInfo *info);
-    };
+            void updateLine(Line &line);
+            void updateCharInfo(CharInfo *info);
+            CharPos getCharPos(Line *line, CharInfo *info);
+        };
+
+        class Line;
+    }
 
     class TextBox : public sf::Drawable, public Reference<TextBox> {
         friend class CharInfo;
-        friend class Line;
+        friend class detail::Line;
     private:
+        using Line = detail::Line;
+        using CharPosDataHolder = detail::CharPosDataHolder;
+        using CharPosData = detail::CharPosData;
+        using CharInfo = detail::CharInfo;
+
         struct LineLengthCompare {
             bool operator()(Line *left, Line *right) const;
         };
@@ -289,88 +298,94 @@ namespace sftb {
         }
     };
 
-    class CharInfo {
-        friend class TextBox;
-        friend class Line;
-    private:
-        Char c;
-        // todo - can this be optimized out? characters are likely to be accessed sequentially, having them more tightly packed
-        //  could improve performance (in addition to being more memory friendly!)
-        CharPosDataHolder referenceHolder;
-    public:
-        explicit CharInfo(Char c) : c(c) {}
+    namespace detail {
+        class CharInfo {
+            friend class sftb::TextBox;
+            friend class detail::Line;
+        private:
+            Char c;
+            // todo - can this be optimized out? characters are likely to be accessed sequentially, having them more tightly packed
+            //  could improve performance (in addition to being more memory friendly!)
+            CharPosDataHolder referenceHolder;
+        public:
+            explicit CharInfo(Char c) : c(c) {}
 
-        // while copying could be implemented, there is currently no intended
-        // reason to copy CharInfo. Operators are deleted for safety.
-        CharInfo(const CharInfo &) = delete;
-        CharInfo &operator=(const CharInfo &) = delete;
+            // while copying could be implemented, there is currently no intended
+            // reason to copy CharInfo. Operators are deleted for safety.
+            CharInfo(const CharInfo &) = delete;
+            CharInfo &operator=(const CharInfo &) = delete;
 
-        CharInfo(CharInfo &&other) noexcept: c(other.c), referenceHolder(std::move(other.referenceHolder)) {
-            referenceHolder.updateCharInfo(this);
-        }
+            CharInfo(CharInfo &&other) noexcept: c(other.c), referenceHolder(std::move(other.referenceHolder)) {
+                referenceHolder.updateCharInfo(this);
+            }
 
-        CharInfo &operator=(CharInfo &&other) noexcept {
-            c = other.c;
-            referenceHolder = std::move(other.referenceHolder);
-            referenceHolder.updateCharInfo(this);
+            CharInfo &operator=(CharInfo &&other) noexcept {
+                c = other.c;
+                referenceHolder = std::move(other.referenceHolder);
+                referenceHolder.updateCharInfo(this);
 
-            return *this;
-        }
+                return *this;
+            }
 
-        [[nodiscard]] Char getChar() const {
-            return c;
-        }
-    };
+            [[nodiscard]] Char getChar() const {
+                return c;
+            }
+        };
 
-    class Line : public Reference<Line> {
-    public:
-        TextBox::LineLengthSet::iterator lineLengthIterator;
-        std::vector<CharInfo> characters;
-        CharPosDataHolder endLineCharPosDataHolder;
+        class Line : public Reference<Line> {
+            friend class sftb::TextBox;
+            friend class CharPosData;
+        private:
+            using TextBox = sftb::TextBox;
 
-        auto createIterator(TextBox *box) {
-            return box->lineLength.insert(getReference());
-        }
+            TextBox::LineLengthSet::iterator lineLengthIterator;
+            std::vector<CharInfo> characters;
+            CharPosDataHolder endLineCharPosDataHolder;
 
-        explicit Line(TextBox *box) : lineLengthIterator(createIterator(box)) {
-        }
+            auto createIterator(TextBox *box) {
+                return box->lineLength.insert(getReference());
+            }
 
-        Line(const Line &) = delete;
-        Line &operator=(const Line &) = delete;
-        Line(Line &&) = default;
-        Line &operator=(Line &&) = default;
+            static void prepareRemove(const CharPos &transferPos, const std::vector<CharInfo>::iterator &start,
+                                      const std::vector<CharInfo>::iterator &end);
+        public:
+            explicit Line(TextBox *box) : lineLengthIterator(createIterator(box)) {
+            }
 
-        void updateLineLength(TextBox *box) {
-            box->lineLength.erase(lineLengthIterator);
-            lineLengthIterator = createIterator(box);
-        }
+            Line(const Line &) = delete;
+            Line &operator=(const Line &) = delete;
+            Line(Line &&) = default;
+            Line &operator=(Line &&) = default;
 
-        [[nodiscard]] std::size_t getNumberCharacters() const {
-            return characters.size();
-        }
+            void updateLineLength(TextBox *box) {
+                box->lineLength.erase(lineLengthIterator);
+                lineLengthIterator = createIterator(box);
+            }
 
-        void insert(TextBox *box, const sf::String &string, std::size_t index = 0);
+            [[nodiscard]] std::size_t getNumberCharacters() const {
+                return characters.size();
+            }
 
-        static void prepareRemove(const CharPos &transferPos, const std::vector<CharInfo>::iterator &start,
-                                  const std::vector<CharInfo>::iterator &end);
+            void insert(TextBox *box, const sf::String &string, std::size_t index = 0);
 
-        void prepareRemoveAll(const CharPos &transferPos) {
-            prepareRemove(transferPos, characters.begin(), characters.end());
-            endLineCharPosDataHolder.transfer(transferPos);
-        }
+            void prepareRemoveAll(const CharPos &transferPos) {
+                prepareRemove(transferPos, characters.begin(), characters.end());
+                endLineCharPosDataHolder.transfer(transferPos);
+            }
 
-        void remove(TextBox *box, std::size_t start, std::size_t end = -1);
-        void move(TextBox *box, Line &line, std::size_t start, std::size_t insertPosition);
+            void remove(TextBox *box, std::size_t start, std::size_t end = -1);
+            void move(TextBox *box, Line &line, std::size_t start, std::size_t insertPosition);
 
-        CharInfo &getCharInfo(std::size_t position) {
-            assert(position < getNumberCharacters() && "position out of bounds");
-            return characters[position];
-        }
+            CharInfo &getCharInfo(std::size_t position) {
+                assert(position < getNumberCharacters() && "position out of bounds");
+                return characters[position];
+            }
 
-        [[nodiscard]] const CharInfo &getCharInfo(std::size_t position) const {
-            return const_cast<Line *>(this)->getCharInfo(position);
-        }
-    };
+            [[nodiscard]] const CharInfo &getCharInfo(std::size_t position) const {
+                return const_cast<Line *>(this)->getCharInfo(position);
+            }
+        };
+    }
 }
 
 

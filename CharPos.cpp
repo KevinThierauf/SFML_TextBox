@@ -5,7 +5,7 @@
 #include "CharPos.hpp"
 #include "TextBox.hpp"
 
-namespace sftb {
+namespace sftb::detail {
     void CharPosData::reduceRelative() const {
         Relative &relative = getRelative();
         // at least one relative link which leads to one absolute
