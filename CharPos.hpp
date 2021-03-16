@@ -1,7 +1,3 @@
-//
-// Created by Computer on 3/16/2021.
-//
-
 #ifndef SFML_TEXTBOX_CHARPOS_HPP
 #define SFML_TEXTBOX_CHARPOS_HPP
 

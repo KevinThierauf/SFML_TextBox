@@ -10,6 +10,7 @@
 #include <vector>
 #include <set>
 #include <memory>
+#include <list>
 #include <cassert>
 #include "CharPos.hpp"
 #include "InputHandler.hpp"
@@ -18,6 +19,7 @@
 #include "TextStyle.hpp"
 #include "Pos.hpp"
 #include "Caret.hpp"
+#include "Highlight.hpp"
 
 namespace sf {
     class Font;
@@ -56,8 +58,8 @@ namespace sftb {
     }
 
     class TextBox : public sf::Drawable, public Reference<TextBox> {
-        friend class CharInfo;
         friend class detail::Line;
+        friend class Highlight;
     private:
         using Line = detail::Line;
         using CharPosDataHolder = detail::CharPosDataHolder;
@@ -84,6 +86,7 @@ namespace sftb {
         CharPosDataHolder endCharPosDataHolder;
         std::shared_ptr<CaretStyle> caretStyle = std::make_shared<StandardCaretStyle>();
         Caret caret;
+        std::list<Highlight> highlights;
 
         Line &getLine(std::size_t line) {
             assert(line < getNumberLines() && "line out of bounds");
@@ -115,6 +118,7 @@ namespace sftb {
                    getCharPos({start - 1, getLineLength(start - 1)});
         }
 
+        void removeHighlight(Highlight *highlight);
     protected:
         void draw(sf::RenderTarget &target, sf::RenderStates states) const override;
     public:
@@ -149,16 +153,25 @@ namespace sftb {
             return lineHeight;
         }
 
-        [[nodiscard]] Pos getPositionAt(float xOffset, float yOffset) const {
+        // 0.0 for no rounding
+        // 0.5f for rounding at halfway
+        // 0.3f for rounding at 0.7f
+        // etc.
+        [[nodiscard]] Pos getPositionAt(float xOffset, float yOffset, float roundX = 0, float roundY = 0) const {
             xOffset -= getTextOffsetHorizontal();
             yOffset -= getTextOffsetVertical();
+
+            // when non-monospaced fonts are provided this operation may become somewhat more expensive
+            // although the != 0 checks are largely pointless now, they may be worthwhile later
+            if (roundX != 0) xOffset += roundX * getCharacterWidth();
+            if (roundY != 0) yOffset += roundY * getLineHeight();
 
             return {static_cast<std::size_t>(std::max(0, static_cast<int>(yOffset / getLineHeight()))),
                     static_cast<std::size_t>(std::max(0, static_cast<int>(xOffset / getCharacterWidth())))};
         }
 
-        [[nodiscard]] Pos getPositionAt(const sf::Vector2f &vector) const {
-            return getPositionAt(vector.x, vector.y);
+        [[nodiscard]] Pos getPositionAt(const sf::Vector2f &vector, float roundX, float roundY) const {
+            return getPositionAt(vector.x, vector.y, roundX, roundY);
         }
 
         [[nodiscard]] sf::Vector2f getOffsetOf(const Pos &pos) const {
@@ -295,6 +308,12 @@ namespace sftb {
 
         [[nodiscard]] const Caret &getPrimaryCaret() const {
             return caret;
+        }
+
+        Highlight *highlight(const Pos &first, const Pos &second, std::shared_ptr<Highlighter> highlighter);
+
+        HighlightHandle handledHighlight(const Pos &first, const Pos &second, std::shared_ptr<Highlighter> highlighter) {
+            return HighlightHandle(highlight(first, second, std::move(highlighter)));
         }
     };
 

@@ -1,7 +1,3 @@
-//
-// Created by Computer on 3/16/2021.
-//
-
 #include <SFML/Window/Clipboard.hpp>
 #include "Caret.hpp"
 #include "InputHandler.hpp"

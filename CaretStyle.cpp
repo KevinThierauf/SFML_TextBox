@@ -6,6 +6,13 @@
 #include "TextBox.hpp"
 
 namespace sftb {
+    const sf::Color CaretStyle::TEXT_HIGHLIGHT_COLOR = sf::Color(138, 173, 255, 100); // NOLINT(cert-err58-cpp)
+
+    Highlighter &CaretStyle::getSelectedTextHighlighter(const Caret &c) {
+        static std::shared_ptr<Highlighter> highlighter = std::make_shared<ColorHighlighter>(TEXT_HIGHLIGHT_COLOR);
+        return *highlighter;
+    }
+
     void StandardCaretStyle::draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &c) {
         sf::RectangleShape shape(getCaretSize(c));
         shape.setPosition(getCaretPosition(c));

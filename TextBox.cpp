@@ -6,6 +6,11 @@
 #include "TextBox.hpp"
 
 namespace sftb {
+    // used to determine by how much to round when selecting character
+    // 0.4 means that, when clicking on a character, there is a 20% preference to the leftmost character
+    // 0.5 for no preference
+    constexpr float CHARACTER_ROUNDING = 0.4f;
+
     TextBox::TextBox(sf::Font &font, sf::Vector2f size, std::size_t characterSize, std::shared_ptr<bool> redraw)
             : font(&font), size(size), characterSize(characterSize),
               lineHeight(font.getLineSpacing(characterSize)),
@@ -21,6 +26,18 @@ namespace sftb {
 
     bool TextBox::LineLengthCompare::operator()(Line *left, Line *right) const {
         return left->getNumberCharacters() < right->getNumberCharacters();
+    }
+
+    void TextBox::removeHighlight(Highlight *highlight) {
+        assert(highlight != nullptr && "highlight is nullptr");
+        assert(!highlight->isRemoved() && "highlight is removed");
+        highlights.erase(highlight->iterator);
+    }
+
+    Highlight *TextBox::highlight(const Pos &first, const Pos &second, std::shared_ptr<Highlighter> highlighter) {
+        auto iter = highlights.emplace(highlights.begin(), Highlight(*this, std::move(highlighter), first, second));
+        iter->iterator = iter;
+        return &*iter;
     }
 
     void TextBox::draw(sf::RenderTarget &target, sf::RenderStates states) const {
@@ -73,7 +90,10 @@ namespace sftb {
         }
 
         target.draw(caret, states);
-        // todo - draw highlight
+
+        for(const Highlight &highlight : highlights) {
+            highlight.draw(target, states);
+        }
     }
 
     sf::Vector2f TextBox::getContentSize() const {
@@ -88,7 +108,7 @@ namespace sftb {
     }
 
     Pos TextBox::getVisibleEnd() const {
-        return getPositionAt(sf::Vector2f(getTextOffsetHorizontal(), getTextOffsetVertical()) + getSize()) + Pos{1, 1};
+        return getPositionAt(sf::Vector2f(getTextOffsetHorizontal(), getTextOffsetVertical()) + getSize(), 0.5f, 0.5f);
     }
 
     bool TextBox::isPositionOnScreen(const Pos &position) const {
@@ -156,7 +176,7 @@ namespace sftb {
 
         auto line = relativePosition.line;
         float xPos = getOffsetOf(pos).x;
-        auto position = getPositionAt({xPos, line * getLineHeight()}).position;
+        auto position = getPositionAt(xPos, line * getLineHeight(), CHARACTER_ROUNDING).position;
         return {line, std::min(position, getLineLength(line))};
     }
 
@@ -391,7 +411,7 @@ namespace sftb {
     void TextBox::handleInput(sf::Mouse::Button button, bool pressed, int x, int y) {
         if (button == sf::Mouse::Button::Left) {
             if (pressed) {
-                caret.setClosestPosition(getPositionAt(x, y));
+                caret.setClosestPosition(getPositionAt(x, y, CHARACTER_ROUNDING));
                 selectionActive = true;
             } else {
                 selectionActive = false;
@@ -401,7 +421,7 @@ namespace sftb {
 
     void TextBox::handleMousePositionChange(int x, int y) {
         if (selectionActive) {
-            caret.setClosestPosition(getPositionAt(x, y));
+            caret.setClosestPosition(getPositionAt(x, y, CHARACTER_ROUNDING));
         }
     }
 

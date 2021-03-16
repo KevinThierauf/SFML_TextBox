@@ -12,11 +12,15 @@ namespace sfml {
 
 namespace sftb {
     class Caret;
+    class Highlighter;
 
     class CaretStyle {
         friend class Caret;
+    public:
+        static const sf::Color TEXT_HIGHLIGHT_COLOR;
     protected:
         virtual void draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &caret) = 0;
+        virtual Highlighter &getSelectedTextHighlighter(const Caret &c);
 
         virtual void notifyPositionChange(const Caret &c, const Pos &previousPosition) {
         }
