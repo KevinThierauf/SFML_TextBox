@@ -21,7 +21,7 @@ namespace sftb {
         }
     }
 
-    std::unique_ptr<InputHandler> InputHandler::standard() {
+    std::shared_ptr<InputHandler> InputHandler::standard() {
         class StandardInputHandler : public InputHandler {
         public:
             void handle(sf::Keyboard::Key key, bool pressed, bool control, bool shift, bool alt) override {
@@ -156,6 +156,6 @@ namespace sftb {
                 }
             }
         };
-        return std::make_unique<StandardInputHandler>();
+        return std::make_shared<StandardInputHandler>();
     }
 }

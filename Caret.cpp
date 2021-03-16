@@ -31,6 +31,9 @@ namespace sftb {
 
     void Caret::setSelectionEndPos(const Pos &position) {
         selectionEndPos = reference->getCharPos(position);
+        if(selectedTextHighlight.isRemoved())
+            selectedTextHighlight.setHighlight(getTextBox().highlight(getPosition(), position, style->getSelectedTextHighlighter(*this)));
+        else selectedTextHighlight->setEnd(position);
     }
 
     void Caret::removeSelectedText() {

@@ -81,7 +81,7 @@ namespace sftb {
         mutable std::shared_ptr<bool> redraw;
         ScrollBarManager scrollBarManager;
         sf::Color backgroundColor = sf::Color::Black;
-        std::unique_ptr<InputHandler> inputHandler = InputHandler::standard();
+        std::shared_ptr<InputHandler> inputHandler = InputHandler::standard();
         bool selectionActive = false;
         CharPosDataHolder endCharPosDataHolder;
         std::shared_ptr<CaretStyle> caretStyle = std::make_shared<StandardCaretStyle>();

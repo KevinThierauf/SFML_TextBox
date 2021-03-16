@@ -4,6 +4,7 @@
 #include <SFML/Graphics/RenderStates.hpp>
 #include <SFML/Graphics/Color.hpp>
 #include <SFML/System/Clock.hpp>
+#include <memory>
 #include "Pos.hpp"
 
 namespace sfml {
@@ -20,7 +21,7 @@ namespace sftb {
         static const sf::Color TEXT_HIGHLIGHT_COLOR;
     protected:
         virtual void draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &caret) = 0;
-        virtual Highlighter &getSelectedTextHighlighter(const Caret &c);
+        virtual std::shared_ptr<Highlighter> getSelectedTextHighlighter(const Caret &c);
 
         virtual void notifyPositionChange(const Caret &c, const Pos &previousPosition) {
         }

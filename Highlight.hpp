@@ -84,7 +84,7 @@ namespace sftb {
     private:
         Highlight *highlight;
     public:
-        explicit HighlightHandle(Highlight *highlight) : highlight(highlight) {
+        explicit HighlightHandle(Highlight *highlight = nullptr) : highlight(highlight) {
         }
 
         ~HighlightHandle();

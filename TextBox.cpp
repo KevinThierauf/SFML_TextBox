@@ -3,6 +3,7 @@
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Window/Event.hpp>
 #include <ostream>
+#include <iostream>
 #include "TextBox.hpp"
 
 namespace sftb {
@@ -420,7 +421,7 @@ namespace sftb {
 
     void TextBox::handleMousePositionChange(int x, int y) {
         if (selectionActive) {
-            caret.setClosestPosition(getPositionAt(x, y, CHARACTER_ROUNDING));
+            caret.setSelectionEndClosestPosition(getPositionAt(x, y, CHARACTER_ROUNDING));
         }
     }
 

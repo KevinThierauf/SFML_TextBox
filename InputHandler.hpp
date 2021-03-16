@@ -42,14 +42,16 @@ namespace sftb {
             return *this;
         }
 
+        // managed exclusively by smart pointers -- smart pointers may be moved, but the InputHandler objects themselves
+        // should not be
         InputHandler(InputHandler &&) = delete;
         InputHandler &operator=(InputHandler &&) = delete;
 
-        static std::unique_ptr<InputHandler> basic() {
-            return std::make_unique<InputHandler>();
+        static std::shared_ptr<InputHandler> basic() {
+            return std::make_shared<InputHandler>();
         }
 
-        static std::unique_ptr<InputHandler> standard();
+        static std::shared_ptr<InputHandler> standard();
 
         virtual ~InputHandler() = default;
 

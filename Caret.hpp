@@ -8,6 +8,7 @@
 #include "Pos.hpp"
 #include "CaretStyle.hpp"
 #include "CharPos.hpp"
+#include "Highlight.hpp"
 
 namespace sftb {
     class TextBox;
@@ -19,6 +20,7 @@ namespace sftb {
         TextBox *reference;
         CharPos pos, selectionEndPos;
         std::shared_ptr<CaretStyle> style;
+        HighlightHandle selectedTextHighlight;
 
         explicit Caret(TextBox &box, Pos position = {});
 
@@ -72,6 +74,7 @@ namespace sftb {
 
         void removeSelection() {
             selectionEndPos = nullptr;
+            selectedTextHighlight.remove();
         }
 
         void removeSelectedText();
