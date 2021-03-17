@@ -4,19 +4,19 @@
 
 namespace sftb {
     void ScrollBar::setRedraw() {
-        *manager->redraw = true;
+        *(**manager).redraw = true;
     }
 
     float ScrollBar::getSize() const {
-        return std::max(1.0f, getPrimary(manager->contentSizeFunction()));
+        return std::max(1.0f, getPrimary((**manager).contentSizeFunction()));
     }
 
     float ScrollBar::getAssociateSize() const {
-        return std::max(1.0f, getComponent(!vertical, manager->contentSizeFunction()));
+        return std::max(1.0f, getComponent(!vertical, (**manager).contentSizeFunction()));
     }
 
     float ScrollBar::getDrawSpace() const {
-        return getPrimary(manager->drawSpaceFunction());
+        return getPrimary((**manager).drawSpaceFunction());
     }
 
     float ScrollBar::getScrollBarLength() const {

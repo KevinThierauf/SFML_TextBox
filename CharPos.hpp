@@ -21,7 +21,7 @@ namespace sftb {
             struct Absolute {
                 // nullptr line indicates end of text position
                 // any other nullptr info indicates end of line
-                Line *line;
+                Line **line;
                 CharInfo *info;
             };
         private:
@@ -49,7 +49,7 @@ namespace sftb {
 
             void reduceRelative() const;
 
-            void updateLine(Line *line) {
+            void updateLine(Line **line) {
                 // not getLinkedAbsolute() -- relative is only used to retain references, should never be updated
                 getAbsolute().line = line;
             }
@@ -59,7 +59,7 @@ namespace sftb {
             }
 
         public:
-            CharPosData(Line *line, CharInfo *info) : locationInfo(Absolute{line, info}) {}
+            CharPosData(Line **line, CharInfo *info) : locationInfo(Absolute{line, info}) {}
 
             CharPosData(const CharPosData &) = delete;
             CharPosData &operator=(const CharPosData &) = delete;

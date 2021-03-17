@@ -67,10 +67,10 @@ namespace sftb {
         using CharInfo = detail::CharInfo;
 
         struct LineLengthCompare {
-            bool operator()(Line *left, Line *right) const;
+            bool operator()(Line **left, Line **right) const;
         };
 
-        using LineLengthSet = std::multiset<Line *, LineLengthCompare>;
+        using LineLengthSet = std::multiset<Line **, LineLengthCompare>;
 
         LineLengthSet lineLength;
         std::vector<Line> lines;
@@ -106,9 +106,7 @@ namespace sftb {
             return characterWidth;
         }
 
-        [[nodiscard]] Line &getLongestLine() const {
-            return **lineLength.begin();
-        }
+        [[nodiscard]] std::size_t getLongestLineLength() const;
 
         // return true if verify is true, and either x or y are outside this TextBox
         bool isOutBounds(bool verify, int x, int y) const;
@@ -131,7 +129,7 @@ namespace sftb {
         TextBox(TextBox &&other) = default;
         TextBox &operator=(TextBox &&) = default;
 
-        ~TextBox();
+        ~TextBox() override;
 
         [[nodiscard]] float getTextOffsetVertical() const {
             return offset.y + scrollBarManager.getVerticalScrollBar().getScrollOffset();
@@ -278,7 +276,7 @@ namespace sftb {
         [[nodiscard]] Pos getPositionOfChar(const CharPos &pos) const {
             assert(pos && "empty CharPos");
             const CharPosData::Absolute &absolute = pos->getLinkedAbsolute();
-            return absolute.line == nullptr ? getEndPos() : Pos{getLineIndex(absolute.line), pos->getCharacterIndex()};
+            return absolute.line == nullptr ? getEndPos() : Pos{getLineIndex(*absolute.line), pos->getCharacterIndex()};
         }
 
         [[nodiscard]] sf::String getTextFrom(Pos first, Pos second) const;
@@ -360,17 +358,19 @@ namespace sftb {
         private:
             using TextBox = sftb::TextBox;
 
-            TextBox *box;
+            TextBox **box;
             TextBox::LineLengthSet::iterator lineLengthIterator;
             std::vector<CharInfo> characters;
             CharPosDataHolder endLineCharPosDataHolder;
 
             auto createIterator() {
-                return box->lineLength.insert(getReference());
+                assert(box != nullptr && "line is removed");
+                return (**box).lineLength.insert(getReference());
             }
 
             void removeIterator() {
-                box->lineLength.erase(lineLengthIterator);
+                assert(box != nullptr && "line is removed");
+                (**box).lineLength.erase(lineLengthIterator);
             }
 
             static void prepareRemove(const CharPos &transferPos, const std::vector<CharInfo>::iterator &start,
@@ -387,12 +387,13 @@ namespace sftb {
             Line(const Line &) = delete;
             Line &operator=(const Line &) = delete;
 
-            Line(Line &&other) noexcept: box(other.box), lineLengthIterator(std::move(other.lineLengthIterator)), characters(std::move(other.characters)),
+            Line(Line &&other) noexcept: Reference(std::move(other)), box(other.box), lineLengthIterator(std::move(other.lineLengthIterator)), characters(std::move(other.characters)),
                                          endLineCharPosDataHolder(std::move(other.endLineCharPosDataHolder)) {
                 other.box = nullptr;
             }
 
             Line &operator=(Line &&other) noexcept {
+                Reference::operator=(std::move(other));
                 box = other.box;
                 other.box = nullptr;
                 lineLengthIterator = std::move(other.lineLengthIterator);
@@ -401,18 +402,25 @@ namespace sftb {
                 return *this;
             }
 
+            inline TextBox &getTextBox() {
+                assert(box != nullptr && "line is invalid");
+                return **box;
+            }
+
             void updateLineLength() {
                 removeIterator();
                 lineLengthIterator = createIterator();
             }
 
             [[nodiscard]] std::size_t getNumberCharacters() const {
+                assert(box != nullptr && "line is invalid");
                 return characters.size();
             }
 
             void insert(const sf::String &string, std::size_t index = 0);
 
             void prepareRemoveAll(const CharPos &transferPos) {
+                assert(box != nullptr && "line is invalid");
                 prepareRemove(transferPos, characters.begin(), characters.end());
                 endLineCharPosDataHolder.transfer(transferPos);
             }

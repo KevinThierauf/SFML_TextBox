@@ -40,7 +40,7 @@ namespace sftb {
     class Highlight : public sf::Drawable {
         friend class TextBox;
     private:
-        TextBox *box;
+        TextBox **box;
         std::shared_ptr<Highlighter> highlighter;
         CharPos start, end;
         std::list<std::shared_ptr<Highlight>>::iterator iterator;
@@ -56,7 +56,7 @@ namespace sftb {
 
         [[nodiscard]] TextBox &getTextBox() const {
             assert(box != nullptr && "managing textbox has been destroyed");
-            return *box;
+            return **box;
         }
 
         [[nodiscard]] bool hasTextBox() const {

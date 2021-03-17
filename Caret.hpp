@@ -17,7 +17,7 @@ namespace sftb {
     class Caret : public sf::Drawable {
         friend class TextBox;
     private:
-        TextBox *reference;
+        TextBox **reference;
         CharPos pos, selectionEndPos;
         std::shared_ptr<CaretStyle> style;
         HighlightHandle selectedTextHighlight;
@@ -38,11 +38,11 @@ namespace sftb {
         Caret &operator=(const Caret &) = delete;
 
         TextBox &getTextBox() {
-            return *reference;
+            return **reference;
         }
 
         [[nodiscard]] const TextBox &getTextBox() const {
-            return *reference;
+            return **reference;
         }
 
         [[nodiscard]] std::shared_ptr<CaretStyle> getCaretStyle() const {

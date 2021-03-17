@@ -4,33 +4,33 @@
 
 namespace sftb {
     Caret::Caret(TextBox &box, Pos position) :
-            reference(box.getReference()), pos(reference->getCharPos(position)), selectionEndPos(nullptr),
-            style(reference->getCaretStyle()) {
+            reference(box.getReference()), pos((**reference).getCharPos(position)), selectionEndPos(nullptr),
+            style((**reference).getCaretStyle()) {
     }
 
     Pos Caret::getClosestPos(const Pos &position) const {
-        auto line = std::min(reference->getNumberLines(), position.line);
-        return {line, std::min(reference->getLineLength(line), position.position)};
+        auto line = std::min((**reference).getNumberLines(), position.line);
+        return {line, std::min((**reference).getLineLength(line), position.position)};
     }
 
     Pos Caret::getPosition() const {
-        return reference->getPositionOfChar(pos);
+        return (**reference).getPositionOfChar(pos);
     }
 
     void Caret::setPosition(const Pos &position) {
         Pos previous = getPosition();
-        pos = reference->getCharPos(position == getTextBox().getEndPos() ? getTextBox().getRelativeCharacters(position, -1) : position);
+        pos = (**reference).getCharPos(position == getTextBox().getEndPos() ? getTextBox().getRelativeCharacters(position, -1) : position);
         removeSelection();
-        reference->setRedrawRequired();
+        (**reference).setRedrawRequired();
         style->notifyPositionChange(*this, previous);
     }
 
     Pos Caret::getSelectionEndPos() const {
-        return selectionEndPos == nullptr ? getPosition() : reference->getPositionOfChar(selectionEndPos);
+        return selectionEndPos == nullptr ? getPosition() : (**reference).getPositionOfChar(selectionEndPos);
     }
 
     void Caret::setSelectionEndPos(const Pos &position) {
-        selectionEndPos = reference->getCharPos(position);
+        selectionEndPos = (**reference).getCharPos(position);
         if(selectedTextHighlight.isRemoved())
             selectedTextHighlight.setHighlight(getTextBox().highlight(getPosition(), position, style->getSelectedTextHighlighter(*this)));
         else selectedTextHighlight->setEnd(position);
@@ -38,17 +38,17 @@ namespace sftb {
 
     void Caret::removeSelectedText() {
         if (hasSelection()) {
-            reference->removeText(getPosition(), getSelectionEndPos());
+            (**reference).removeText(getPosition(), getSelectionEndPos());
             removeSelection();
         }
     }
 
     sf::String Caret::getSelectedText() const {
-        return hasSelection() ? reference->getTextFrom(getPosition(), getSelectionEndPos()) : "";
+        return hasSelection() ? (**reference).getTextFrom(getPosition(), getSelectionEndPos()) : "";
     }
 
     void Caret::insert(const sf::String &string) {
         removeSelectedText();
-        setPosition(reference->insertText(getPosition(), string));
+        setPosition((**reference).insertText(getPosition(), string));
     }
 }

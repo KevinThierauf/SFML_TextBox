@@ -18,9 +18,9 @@ namespace sftb {
               characterWidth(font.getGlyph('a', characterSize, false).advance),
               redraw(redraw ? std::move(redraw) : std::make_shared<bool>(true)),
               scrollBarManager(this->redraw, [box(getReference())]() {
-                  return box->getContentSize();
+                  return (**box).getContentSize();
               }, [box(getReference())] {
-                  return box->getSize();
+                  return (**box).getSize();
               }), caret(*this) {
         inputHandler->textBox = getReference();
     }
@@ -31,8 +31,8 @@ namespace sftb {
         }
     }
 
-    bool TextBox::LineLengthCompare::operator()(Line *left, Line *right) const {
-        return left->getNumberCharacters() < right->getNumberCharacters();
+    bool TextBox::LineLengthCompare::operator()(Line **left, Line **right) const {
+        return (**left).getNumberCharacters() < (**right).getNumberCharacters();
     }
 
     void TextBox::removeHighlight(const std::shared_ptr<Highlight>& highlight) {
@@ -104,7 +104,7 @@ namespace sftb {
 
     sf::Vector2f TextBox::getContentSize() const {
         return offset + sf::Vector2f{
-                getLongestLine().getNumberCharacters() * getCharacterWidth(),
+                getLongestLineLength() * getCharacterWidth(),
                 getNumberLines() * getLineHeight()
         };
     }
@@ -211,7 +211,7 @@ namespace sftb {
 
         CharPos CharPosDataHolder::getCharPos(Line *line, CharInfo *info) {
             if (active()) return reference.lock();
-            CharPos charPos = std::make_shared<CharPosData>(line, info);
+            CharPos charPos = std::make_shared<CharPosData>(line == nullptr ? nullptr : line->getReference(), info);
             reference = charPos;
             return charPos;
         }
@@ -431,6 +431,10 @@ namespace sftb {
         }
     }
 
+    std::size_t TextBox::getLongestLineLength() const {
+        return lineLength.empty() ? 0 : (***lineLength.begin()).getNumberCharacters();
+    }
+
     std::size_t TextBox::getLineIndex(const Line *line) const {
         assert(line != nullptr && "line is nullptr");
         // same logic as CharInfo getCharacterIndex
@@ -444,17 +448,17 @@ namespace sftb {
 
     namespace detail {
         void Line::remove(std::size_t start, std::size_t end) {
-            auto endIndex = std::min(end, characters.size());
+            auto endIndex = std::min(end, getNumberCharacters());
 
             CharPos transferPos;
 
             if (start == 0) {
-                auto lineIndex = box->getLineIndex(this);
+                auto lineIndex = getTextBox().getLineIndex(this);
                 if (lineIndex == 0) {
                     // end character if exists, or end of line
-                    transferPos = box->getCharPos({lineIndex, endIndex});
+                    transferPos = getTextBox().getCharPos({lineIndex, endIndex});
                 } else {
-                    Line &previousLine = box->getLine(lineIndex - 1);
+                    Line &previousLine = getTextBox().getLine(lineIndex - 1);
                     transferPos = previousLine.endLineCharPosDataHolder.getCharPos(&previousLine, nullptr);
                 }
             } else {

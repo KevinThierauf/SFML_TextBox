@@ -12,7 +12,7 @@ namespace sftb {
     class InputHandler {
         friend class TextBox;
     private:
-        TextBox *textBox = nullptr;
+        TextBox **textBox = nullptr;
     protected:
         static bool isNumeric(Char code) {
             return '0' <= code && code <= '9';
@@ -56,11 +56,13 @@ namespace sftb {
         virtual ~InputHandler() = default;
 
         [[nodiscard]] TextBox &getTextBox() {
-            return *textBox;
+            assert(textBox != nullptr && "textBox is nullptr");
+            return **textBox;
         }
 
         [[nodiscard]] const TextBox &getTextBox() const {
-            return *textBox;
+            assert(textBox != nullptr && "textBox is nullptr");
+            return **textBox;
         }
 
         [[nodiscard]] virtual bool isTextInput(Char code) const {

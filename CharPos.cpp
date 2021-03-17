@@ -23,7 +23,7 @@ namespace sftb::detail {
 
     std::size_t CharPosData::getCharacterIndex() const {
         const Absolute &absolute = getLinkedAbsolute();
-        Line *line = absolute.line;
+        Line *line = *absolute.line;
         CharInfo *info = absolute.info;
 
         // pointer arithmetic based on characters being sequential

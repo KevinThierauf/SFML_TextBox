@@ -3,10 +3,14 @@
 
 #include <memory>
 #include <cassert>
+#include <iostream>
 
 namespace sftb {
     template<typename T>
     class Reference {
+    public:
+        using Ref = T**;
+        using ConstRef = const T**;
     private:
         std::unique_ptr<T *> pointer;
 
@@ -35,12 +39,12 @@ namespace sftb {
             return *this;
         }
 
-        [[nodiscard]] T *getReference() {
-            return *pointer;
+        [[nodiscard]] Ref getReference() {
+            return pointer.get();
         }
 
-        [[nodiscard]] const T *getReference() const {
-            return *pointer;
+        [[nodiscard]] ConstRef getReference() const {
+            return pointer.get();
         }
     };
 }

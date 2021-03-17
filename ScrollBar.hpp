@@ -13,7 +13,7 @@ namespace sftb {
 
     class ScrollBar : public sf::Drawable {
     private:
-        ScrollBarManager *manager;
+        ScrollBarManager **manager;
         bool vertical;
         float scrollAmount = 0;
         sf::Color color = sf::Color::Black;
@@ -39,7 +39,7 @@ namespace sftb {
         void draw(sf::RenderTarget &target, sf::RenderStates states) const override;
 
     public:
-        ScrollBar(ScrollBarManager *manager, bool vertical) :
+        ScrollBar(ScrollBarManager **manager, bool vertical) :
                 manager(manager), vertical(vertical) {}
 
         [[nodiscard]] bool isVertical() const {
