@@ -43,7 +43,7 @@ namespace sftb {
         TextBox *box;
         std::shared_ptr<Highlighter> highlighter;
         CharPos start, end;
-        std::list<Highlight>::iterator iterator;
+        std::list<std::shared_ptr<Highlight>>::iterator iterator;
 
         Highlight(TextBox &box, std::shared_ptr<Highlighter> highlighter, const Pos &start, const Pos &end);
     protected:
@@ -55,7 +55,12 @@ namespace sftb {
         Highlight &operator=(Highlight &&) = default;
 
         [[nodiscard]] TextBox &getTextBox() const {
+            assert(box != nullptr && "managing textbox has been destroyed");
             return *box;
+        }
+
+        [[nodiscard]] bool hasTextBox() const {
+            return box != nullptr;
         }
 
         [[nodiscard]] const std::shared_ptr<Highlighter> &getHighlighter() const {
@@ -82,32 +87,36 @@ namespace sftb {
 
     class HighlightHandle {
     private:
-        Highlight *highlight;
+        std::shared_ptr<Highlight> highlight;
     public:
-        explicit HighlightHandle(Highlight *highlight = nullptr) : highlight(highlight) {
+        explicit HighlightHandle(std::shared_ptr<Highlight> highlight = nullptr) : highlight(std::move(highlight)) {
         }
 
         ~HighlightHandle();
 
-        Highlight *release() {
-            Highlight *tmp = highlight;
+        std::shared_ptr<Highlight> release() {
+            std::shared_ptr<Highlight> tmp = highlight;
             highlight = nullptr;
             return tmp;
         }
 
         void remove();
 
-        void setHighlight(Highlight *h) {
-            highlight = h;
+        void setHighlight(std::shared_ptr<Highlight> h) {
+            highlight = std::move(h);
         }
 
         Highlight *operator->() {
             assert(highlight != nullptr && "highlight is empty");
-            return highlight;
+            return highlight.get();
+        }
+
+        [[nodiscard]] bool empty() const {
+            return highlight == nullptr;
         }
 
         [[nodiscard]] bool isRemoved() const {
-            return highlight == nullptr;
+            return empty() || !highlight->hasTextBox();
         }
 
         operator bool() const {

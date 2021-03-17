@@ -3,6 +3,7 @@
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Window/Event.hpp>
 #include <ostream>
+#include <cmath>
 #include "TextBox.hpp"
 
 namespace sftb {
@@ -24,19 +25,25 @@ namespace sftb {
         inputHandler->textBox = getReference();
     }
 
+    TextBox::~TextBox() {
+        for(auto &highlight : highlights) {
+            highlight->box = nullptr;
+        }
+    }
+
     bool TextBox::LineLengthCompare::operator()(Line *left, Line *right) const {
         return left->getNumberCharacters() < right->getNumberCharacters();
     }
 
-    void TextBox::removeHighlight(Highlight *highlight) {
+    void TextBox::removeHighlight(const std::shared_ptr<Highlight>& highlight) {
         assert(highlight != nullptr && "highlight is nullptr");
         highlights.erase(highlight->iterator);
     }
 
-    Highlight *TextBox::highlight(const Pos &first, const Pos &second, std::shared_ptr<Highlighter> highlighter) {
-        auto iter = highlights.emplace(highlights.begin(), Highlight(*this, std::move(highlighter), first, second));
-        iter->iterator = iter;
-        return &*iter;
+    std::shared_ptr<Highlight> TextBox::highlight(const Pos &first, const Pos &second, std::shared_ptr<Highlighter> highlighter) {
+        auto iter = highlights.emplace(highlights.begin(), std::make_shared<Highlight>(Highlight(*this, std::move(highlighter), first, second)));
+        (**iter).iterator = iter;
+        return *iter;
     }
 
     void TextBox::draw(sf::RenderTarget &target, sf::RenderStates states) const {
@@ -90,8 +97,8 @@ namespace sftb {
 
         target.draw(caret, states);
 
-        for(const Highlight &highlight : highlights) {
-            highlight.draw(target, states);
+        for(const std::shared_ptr<Highlight> &highlight : highlights) {
+            highlight->draw(target, states);
         }
     }
 

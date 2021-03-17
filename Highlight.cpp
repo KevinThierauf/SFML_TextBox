@@ -53,16 +53,16 @@ namespace sftb {
     }
 
     void Highlight::draw(sf::RenderTarget &target, sf::RenderStates states) const {
-        assert(box != nullptr && "highlight is removed");
-        highlighter->highlight(target, states, *box, box->getPositionOfChar(start), box->getPositionOfChar(end));
+        TextBox &textBox = getTextBox();
+        highlighter->highlight(target, states, textBox, textBox.getPositionOfChar(start), textBox.getPositionOfChar(end));
     }
 
     void Highlight::setStart(const Pos &s) {
-        start = box->getCharPos(s);
+        start = getTextBox().getCharPos(s);
     }
 
     void Highlight::setEnd(const Pos &e) {
-        end = box->getCharPos(e);
+        end = getTextBox().getCharPos(e);
     }
 
     HighlightHandle::~HighlightHandle() {

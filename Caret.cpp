@@ -19,7 +19,7 @@ namespace sftb {
 
     void Caret::setPosition(const Pos &position) {
         Pos previous = getPosition();
-        pos = reference->getCharPos(position);
+        pos = reference->getCharPos(position == getTextBox().getEndPos() ? getTextBox().getRelativeCharacters(position, -1) : position);
         removeSelection();
         reference->setRedrawRequired();
         style->notifyPositionChange(*this, previous);

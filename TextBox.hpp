@@ -86,7 +86,7 @@ namespace sftb {
         CharPosDataHolder endCharPosDataHolder;
         std::shared_ptr<CaretStyle> caretStyle = std::make_shared<StandardCaretStyle>();
         Caret caret;
-        std::list<Highlight> highlights;
+        std::list<std::shared_ptr<Highlight>> highlights;
 
         Line &getLine(std::size_t line) {
             assert(line < getNumberLines() && "line out of bounds");
@@ -129,6 +129,8 @@ namespace sftb {
 
         TextBox(TextBox &&other) = default;
         TextBox &operator=(TextBox &&) = default;
+
+        ~TextBox();
 
         [[nodiscard]] float getTextOffsetVertical() const {
             return offset.y + scrollBarManager.getVerticalScrollBar().getScrollOffset();
@@ -308,13 +310,13 @@ namespace sftb {
             return caret;
         }
 
-        Highlight *highlight(const Pos &first, const Pos &second, std::shared_ptr<Highlighter> highlighter);
+        std::shared_ptr<Highlight> highlight(const Pos &first, const Pos &second, std::shared_ptr<Highlighter> highlighter);
 
         HighlightHandle handledHighlight(const Pos &first, const Pos &second, std::shared_ptr<Highlighter> highlighter) {
             return HighlightHandle(highlight(first, second, std::move(highlighter)));
         }
 
-        void removeHighlight(Highlight *highlight);
+        void removeHighlight(const std::shared_ptr<Highlight>& highlight);
     };
 
     namespace detail {
