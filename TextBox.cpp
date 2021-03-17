@@ -289,15 +289,15 @@ namespace sftb {
             Line &next = *lines.emplace(lines.begin() + pos.line + 1, this);
 
             Line &startLine = getLine(pos.line);
-            startLine.move(this, next, pos.position, 0);
-            startLine.insert(this, text.substring(0, endIndex), pos.position);
+            startLine.move(next, pos.position, 0);
+            startLine.insert(text.substring(0, endIndex), pos.position);
 
             pos.position = endIndex;
             startIndex = endIndex + 1;
 
             while ((endIndex = text.find('\n', endIndex + 1)) != sf::String::InvalidPos) {
                 pos.position = endIndex - startIndex;
-                lines.emplace(lines.begin() + ++pos.line, this)->insert(this, text.substring(startIndex, pos.position));
+                lines.emplace(lines.begin() + ++pos.line, this)->insert(text.substring(startIndex, pos.position));
                 startIndex = endIndex + 1;
             }
             pos.line++;
@@ -305,7 +305,7 @@ namespace sftb {
             return pos;
         }
 
-        getOrInsertLine(pos.line).insert(this, text.substring(startIndex), pos.position);
+        getOrInsertLine(pos.line).insert(text.substring(startIndex), pos.position);
         return {pos.line, pos.position + text.getSize() - startIndex};
     }
 
@@ -323,23 +323,23 @@ namespace sftb {
         setRedrawRequired();
 
         if (from.line == to.line) {
-            getLine(from.line).remove(this, from.position, to.position);
+            getLine(from.line).remove(from.position, to.position);
             return;
         }
 
-        getLine(from.line).remove(this, from.position);
+        getLine(from.line).remove(from.position);
         unsigned line = from.line + 1;
 
         removeLines(line, to.line);
         to.line = line;
 
         if (to.position != 0) {
-            getLine(to.line).remove(this, 0, to.position);
+            getLine(to.line).remove(0, to.position);
         }
 
         if (to.line != getNumberLines()) {
             // move line contents from to -> from.line directly after from
-            getLine(to.line).move(this, getLine(from.line), 0, from.position);
+            getLine(to.line).move(getLine(from.line), 0, from.position);
             removeLine(to.line);
         }
     }
@@ -443,7 +443,7 @@ namespace sftb {
     }
 
     namespace detail {
-        void Line::remove(TextBox *box, std::size_t start, std::size_t end) {
+        void Line::remove(std::size_t start, std::size_t end) {
             auto endIndex = std::min(end, characters.size());
 
             CharPos transferPos;
@@ -467,10 +467,10 @@ namespace sftb {
             prepareRemove(transferPos, iterStart, iterEnd);
 
             characters.erase(iterStart, iterEnd);
-            updateLineLength(box);
+            updateLineLength();
         }
 
-        void Line::move(TextBox *box, Line &line, std::size_t start, std::size_t insertPosition) {
+        void Line::move(Line &line, std::size_t start, std::size_t insertPosition) {
             assert(start <= getNumberCharacters() && "start out of bounds");
             assert(insertPosition <= line.getNumberCharacters() && "insert position out of bounds");
             // todo - clean up
@@ -490,17 +490,17 @@ namespace sftb {
                                    std::make_move_iterator(iterFirstCharacter),
                                    std::make_move_iterator(iterLastCharacter));
             characters.erase(iterFirstCharacter, iterLastCharacter);
-            line.updateLineLength(box);
-            updateLineLength(box);
+            line.updateLineLength();
+            updateLineLength();
         }
 
-        void Line::insert(TextBox *box, const sf::String &string, std::size_t index) {
+        void Line::insert(const sf::String &string, std::size_t index) {
             assert(index <= getNumberCharacters() && "index out of bounds");
             for (char c : string) {
                 // todo - optimize (will push characters back multiple times)
                 characters.emplace(characters.begin() + index++, c);
             }
-            updateLineLength(box);
+            updateLineLength();
         }
 
         void Line::prepareRemove(const CharPos &transferPos, const std::vector<CharInfo>::iterator &start,

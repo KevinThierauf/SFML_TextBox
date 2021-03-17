@@ -72,8 +72,8 @@ namespace sftb {
 
         using LineLengthSet = std::multiset<Line *, LineLengthCompare>;
 
-        std::vector<Line> lines;
         LineLengthSet lineLength;
+        std::vector<Line> lines;
         sf::Font *font;
         std::size_t characterSize;
         float lineHeight, characterWidth;
@@ -117,6 +117,7 @@ namespace sftb {
             return start == 0 ? getCharPos({end, getLineLength(end)}) :
                    getCharPos({start - 1, getLineLength(start - 1)});
         }
+
     protected:
         void draw(sf::RenderTarget &target, sf::RenderStates states) const override;
     public:
@@ -316,7 +317,7 @@ namespace sftb {
             return HighlightHandle(highlight(first, second, std::move(highlighter)));
         }
 
-        void removeHighlight(const std::shared_ptr<Highlight>& highlight);
+        void removeHighlight(const std::shared_ptr<Highlight> &highlight);
     };
 
     namespace detail {
@@ -359,43 +360,65 @@ namespace sftb {
         private:
             using TextBox = sftb::TextBox;
 
+            TextBox *box;
             TextBox::LineLengthSet::iterator lineLengthIterator;
             std::vector<CharInfo> characters;
             CharPosDataHolder endLineCharPosDataHolder;
 
-            auto createIterator(TextBox *box) {
+            auto createIterator() {
                 return box->lineLength.insert(getReference());
+            }
+
+            void removeIterator() {
+                box->lineLength.erase(lineLengthIterator);
             }
 
             static void prepareRemove(const CharPos &transferPos, const std::vector<CharInfo>::iterator &start,
                                       const std::vector<CharInfo>::iterator &end);
         public:
-            explicit Line(TextBox *box) : lineLengthIterator(createIterator(box)) {
+            explicit Line(TextBox *box) : box(box->getReference()), lineLengthIterator(createIterator()) {
+            }
+
+            ~Line() {
+                if (box)
+                    removeIterator();
             }
 
             Line(const Line &) = delete;
             Line &operator=(const Line &) = delete;
-            Line(Line &&) = default;
-            Line &operator=(Line &&) = default;
 
-            void updateLineLength(TextBox *box) {
-                box->lineLength.erase(lineLengthIterator);
-                lineLengthIterator = createIterator(box);
+            Line(Line &&other) noexcept: box(other.box), lineLengthIterator(std::move(other.lineLengthIterator)), characters(std::move(other.characters)),
+                                         endLineCharPosDataHolder(std::move(other.endLineCharPosDataHolder)) {
+                other.box = nullptr;
+            }
+
+            Line &operator=(Line &&other) noexcept {
+                box = other.box;
+                other.box = nullptr;
+                lineLengthIterator = std::move(other.lineLengthIterator);
+                characters = std::move(other.characters);
+                endLineCharPosDataHolder = std::move(other.endLineCharPosDataHolder);
+                return *this;
+            }
+
+            void updateLineLength() {
+                removeIterator();
+                lineLengthIterator = createIterator();
             }
 
             [[nodiscard]] std::size_t getNumberCharacters() const {
                 return characters.size();
             }
 
-            void insert(TextBox *box, const sf::String &string, std::size_t index = 0);
+            void insert(const sf::String &string, std::size_t index = 0);
 
             void prepareRemoveAll(const CharPos &transferPos) {
                 prepareRemove(transferPos, characters.begin(), characters.end());
                 endLineCharPosDataHolder.transfer(transferPos);
             }
 
-            void remove(TextBox *box, std::size_t start, std::size_t end = -1);
-            void move(TextBox *box, Line &line, std::size_t start, std::size_t insertPosition);
+            void remove(std::size_t start, std::size_t end = -1);
+            void move(Line &line, std::size_t start, std::size_t insertPosition);
 
             CharInfo &getCharInfo(std::size_t position) {
                 assert(position < getNumberCharacters() && "position out of bounds");
