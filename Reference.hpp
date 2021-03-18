@@ -3,7 +3,6 @@
 
 #include <memory>
 #include <cassert>
-#include <iostream>
 
 namespace sftb {
     template<typename T>

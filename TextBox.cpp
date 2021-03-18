@@ -26,17 +26,18 @@ namespace sftb {
     }
 
     TextBox::~TextBox() {
-        for(auto &highlight : highlights) {
+        for (auto &highlight : highlights) {
             highlight->box = nullptr;
         }
     }
 
     bool TextBox::LineLengthCompare::operator()(Line **left, Line **right) const {
-        return (**left).getNumberCharacters() < (**right).getNumberCharacters();
+        return (**right).getNumberCharacters() < (**left).getNumberCharacters();
     }
 
-    void TextBox::removeHighlight(const std::shared_ptr<Highlight>& highlight) {
+    void TextBox::removeHighlight(const std::shared_ptr<Highlight> &highlight) {
         assert(highlight != nullptr && "highlight is nullptr");
+        highlight->box = nullptr;
         highlights.erase(highlight->iterator);
     }
 
@@ -97,9 +98,11 @@ namespace sftb {
 
         target.draw(caret, states);
 
-        for(const std::shared_ptr<Highlight> &highlight : highlights) {
+        for (const std::shared_ptr<Highlight> &highlight : highlights) {
             highlight->draw(target, states);
         }
+
+        target.draw(scrollBarManager, states);
     }
 
     sf::Vector2f TextBox::getContentSize() const {
@@ -327,7 +330,9 @@ namespace sftb {
             return;
         }
 
-        getLine(from.line).remove(from.position);
+        Line &fromLine = getLine(from.line);
+        if (from.position != fromLine.getNumberCharacters())
+            fromLine.remove(from.position);
         unsigned line = from.line + 1;
 
         removeLines(line, to.line);
@@ -338,14 +343,16 @@ namespace sftb {
         }
 
         if (to.line != getNumberLines()) {
-            // move line contents from to -> from.line directly after from
-            getLine(to.line).move(getLine(from.line), 0, from.position);
+            Line &toLine = getLine(to.line);
+            if (toLine.getNumberCharacters() > 0) {
+                // move line contents from to -> from.line directly after from
+                toLine.move(fromLine, 0, from.position);
+            }
             removeLine(to.line);
         }
     }
 
     void TextBox::removeLine(unsigned int line) {
-        assert(line < getNumberLines() && "line out of bounds");
         getLine(line).prepareRemoveAll(getTransferPos(line, line + 1));
         lines.erase(lines.begin() + line);
     }
@@ -384,11 +391,9 @@ namespace sftb {
 
             handleScroll(event.mouseWheelScroll.wheel == sf::Mouse::Wheel::VerticalWheel, event.mouseWheelScroll.delta);
             if (event.mouseWheelScroll.wheel == sf::Mouse::HorizontalWheel) {
-                scrollBarManager.getHorizontalScrollBar().moveScroll(
-                        scrollBarManager.getSensitivityHorizontal() * event.mouseWheelScroll.delta);
+                scrollBarManager.getHorizontalScrollBar().moveScroll(event.mouseWheelScroll.delta);
             } else
-                scrollBarManager.getVerticalScrollBar().moveScroll(
-                        scrollBarManager.getSensitivityVertical() * event.mouseWheelScroll.delta);
+                scrollBarManager.getVerticalScrollBar().moveScroll(event.mouseWheelScroll.delta);
         } else if (event.type == sf::Event::MouseButtonPressed) {
             if (isOutBounds(verifyArea, event.mouseButton.x, event.mouseButton.y)) return;
 
@@ -432,6 +437,7 @@ namespace sftb {
     }
 
     std::size_t TextBox::getLongestLineLength() const {
+        assert(lines.size() == lineLength.size() && "lineLength and lines have different number of elements");
         return lineLength.empty() ? 0 : (***lineLength.begin()).getNumberCharacters();
     }
 

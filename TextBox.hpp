@@ -364,13 +364,11 @@ namespace sftb {
             CharPosDataHolder endLineCharPosDataHolder;
 
             auto createIterator() {
-                assert(box != nullptr && "line is removed");
-                return (**box).lineLength.insert(getReference());
+                return getTextBox().lineLength.insert(getReference());
             }
 
             void removeIterator() {
-                assert(box != nullptr && "line is removed");
-                (**box).lineLength.erase(lineLengthIterator);
+                getTextBox().lineLength.erase(lineLengthIterator);
             }
 
             static void prepareRemove(const CharPos &transferPos, const std::vector<CharInfo>::iterator &start,
@@ -393,12 +391,16 @@ namespace sftb {
             }
 
             Line &operator=(Line &&other) noexcept {
-                Reference::operator=(std::move(other));
-                box = other.box;
-                other.box = nullptr;
-                lineLengthIterator = std::move(other.lineLengthIterator);
-                characters = std::move(other.characters);
-                endLineCharPosDataHolder = std::move(other.endLineCharPosDataHolder);
+                if(&other != this) {
+                    Reference::operator=(std::move(other));
+                    if(box)
+                    removeIterator();
+                    box = other.box;
+                    other.box = nullptr;
+                    lineLengthIterator = std::move(other.lineLengthIterator);
+                    characters = std::move(other.characters);
+                    endLineCharPosDataHolder = std::move(other.endLineCharPosDataHolder);
+                }
                 return *this;
             }
 

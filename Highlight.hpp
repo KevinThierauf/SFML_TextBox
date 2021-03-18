@@ -55,7 +55,7 @@ namespace sftb {
         Highlight &operator=(Highlight &&) = default;
 
         [[nodiscard]] TextBox &getTextBox() const {
-            assert(box != nullptr && "managing textbox has been destroyed");
+            assert(box != nullptr && "highlight is not attached to a textbox");
             return **box;
         }
 

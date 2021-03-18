@@ -29,7 +29,7 @@ int main() {
     box.insertText({0, 0}, "Hello, World!");
 //    box.insertLine(1, "0123456789");
 
-//    auto handle = box.handledHighlight({0, 0}, {0, 4}, std::make_shared<sftb::ColorHighlighter>(sftb::CaretStyle::TEXT_HIGHLIGHT_COLOR));
+    auto handle = box.handledHighlight({0, 0}, {0, 4}, std::make_shared<sftb::ColorHighlighter>(sftb::CaretStyle::TEXT_HIGHLIGHT_COLOR));
 
     // create window
     sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "SFML_TextBox demo");

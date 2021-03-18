@@ -8,16 +8,20 @@
 #include "Reference.hpp"
 
 namespace sftb {
-    constexpr float MIN_SCROLL_BAR_LENGTH = 20;
     class ScrollBarManager;
 
     class ScrollBar : public sf::Drawable {
+    public:
+        static constexpr float MIN_SCROLL_BAR_LENGTH = 20.0f;
+        static constexpr float DEFAULT_SCROLL_BAR_THICKNESS = 8.0f;
+        static constexpr float DEFAULT_SCROLL_SENSITIVITY = 40;
     private:
         ScrollBarManager **manager;
         bool vertical;
         float scrollAmount = 0;
         sf::Color color = sf::Color::Black;
-        float thickness = 40.0f;
+        float thickness = DEFAULT_SCROLL_BAR_THICKNESS;
+        float sensitivity = DEFAULT_SCROLL_SENSITIVITY;
 
         [[nodiscard]] float getComponent(bool component, const sf::Vector2f &vector) const {
             return component ? vector.y : vector.x;
@@ -30,7 +34,7 @@ namespace sftb {
         void setRedraw();
 
         [[nodiscard]] float getSize() const;
-        [[nodiscard]] float getAssociateSize() const;
+        [[nodiscard]] float getAssociatedDrawSpace() const;
         [[nodiscard]] float getDrawSpace() const;
 
         [[nodiscard]] float getScrollBarLength() const;
@@ -46,33 +50,45 @@ namespace sftb {
             return vertical;
         }
 
-        [[nodiscard]] float getMaxOffset() const {
-            return std::max(0.0f, getSize() - getDrawSpace());
+        [[nodiscard]] float getMaxScroll() const {
+            return std::max(0.0f, (getSize() - getDrawSpace()) / sensitivity);
         }
 
-        [[nodiscard]] float getScrollOffset() const {
+        [[nodiscard]] float getMaxScrollOffset() const {
+            return -sensitivity * getMaxScroll();
+        }
+
+        [[nodiscard]] float getScroll() const {
             // scroll may go beyond what is available (for example, if the scrolled content shrinks)
             // in this event, keep the out of bounds scroll, but return a value within bounds
             // out of bounds value is preserved in case the previous size is restored
             // when the scroll is changed, the scroll's ability to be out of bounds is reset
-            return std::min(scrollAmount, getMaxOffset());
-        }
-
-        [[nodiscard]] float getScrollPercent() const {
-            return std::min(getScrollOffset() / getMaxOffset(), 1.0f);
+            return std::min(scrollAmount, getMaxScroll());
         }
 
         void setScroll(float scroll) {
-            scrollAmount = std::clamp(scroll, 0.0f, getMaxOffset());
+            scrollAmount = std::clamp(scroll, 0.0f, getMaxScroll());
             setRedraw();
         }
 
+        [[nodiscard]] float getScrollOffset() const {
+            return -sensitivity * getScroll();
+        }
+
+        void setScrollOffset(float scroll) {
+            setScroll(scroll / sensitivity);
+        }
+
         void moveScroll(float amount) {
-            setScroll(getScrollOffset() + amount);
+            setScroll(getScroll() + amount);
+        }
+
+        [[nodiscard]] float getScrollPercent() const {
+            return getScroll() / getMaxScroll();
         }
 
         void setScrollPercent(float percent) {
-            setScroll(percent * getMaxOffset());
+            setScroll(percent * getMaxScroll());
         }
 
         [[nodiscard]] const sf::Color &getColor() const {
@@ -92,23 +108,31 @@ namespace sftb {
             thickness = t;
             setRedraw();
         }
+
+        [[nodiscard]] float getSensitivity() const {
+            return sensitivity;
+        }
+
+        void setSensitivity(float s) {
+            // scrollAmount will be relative to s, instead of sensitivity
+            // set scrollAmount to be at the same position as before
+            scrollAmount = s * scrollAmount / sensitivity;
+            sensitivity = s;
+        }
     };
 
     class ScrollBarManager : public sf::Drawable, public Reference<ScrollBarManager> {
         friend ScrollBar;
     public:
-        static constexpr float DEFAULT_SCROLL_SENSITIVITY = 40;
     private:
         std::shared_ptr<bool> redraw;
         std::function<sf::Vector2f()> contentSizeFunction;
         std::function<sf::Vector2f()> drawSpaceFunction;
         ScrollBar vertical, horizontal;
-        float sensitivityVertical = DEFAULT_SCROLL_SENSITIVITY, sensitivityHorizontal = DEFAULT_SCROLL_SENSITIVITY;
     protected:
         void draw(sf::RenderTarget &target, sf::RenderStates states) const override;
     public:
-        ScrollBarManager(std::shared_ptr<bool> redraw, std::function<sf::Vector2f()> drawSpaceFunction,
-                         std::function<sf::Vector2f()> contentSizeFunction) :
+        ScrollBarManager(std::shared_ptr<bool> redraw, std::function<sf::Vector2f()> contentSizeFunction, std::function<sf::Vector2f()> drawSpaceFunction) :
                 redraw(std::move(redraw)), contentSizeFunction(std::move(contentSizeFunction)),
                 drawSpaceFunction(std::move(drawSpaceFunction)), vertical(getReference(), true),
                 horizontal(getReference(), false) {}
@@ -127,22 +151,6 @@ namespace sftb {
 
         [[nodiscard]] ScrollBar &getHorizontalScrollBar() {
             return horizontal;
-        }
-
-        [[nodiscard]] float getSensitivityVertical() const {
-            return sensitivityVertical;
-        }
-
-        void setSensitivityVertical(float sensitivity) {
-            sensitivityVertical = sensitivity;
-        }
-
-        [[nodiscard]] float getSensitivityHorizontal() const {
-            return sensitivityHorizontal;
-        }
-
-        void setSensitivityHorizontal(float sensitivity) {
-            sensitivityHorizontal = sensitivity;
         }
     };
 }

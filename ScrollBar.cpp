@@ -11,8 +11,8 @@ namespace sftb {
         return std::max(1.0f, getPrimary((**manager).contentSizeFunction()));
     }
 
-    float ScrollBar::getAssociateSize() const {
-        return std::max(1.0f, getComponent(!vertical, (**manager).contentSizeFunction()));
+    float ScrollBar::getAssociatedDrawSpace() const {
+        return std::max(1.0f, getComponent(!vertical, (**manager).drawSpaceFunction()));
     }
 
     float ScrollBar::getDrawSpace() const {
@@ -21,9 +21,13 @@ namespace sftb {
 
     float ScrollBar::getScrollBarLength() const {
         float size = getSize();
+        // subtract thickness of other scrollbar so they don't overlap
         float available = getDrawSpace();
-        // my head hurts
-        return std::max(MIN_SCROLL_BAR_LENGTH, available / (size * size) * available);
+
+        if (size <= 0 || available <= 0) return 0;
+
+        return std::max(MIN_SCROLL_BAR_LENGTH, (available / size * available)
+                                               - (vertical ? (**manager).getHorizontalScrollBar().thickness : (**manager).getVerticalScrollBar().thickness));
     }
 
     float ScrollBar::getScrollBarPosition() const {
@@ -36,11 +40,11 @@ namespace sftb {
 
         sf::RectangleShape rectangle;
         if (vertical) {
+            rectangle.setPosition({getAssociatedDrawSpace() - thickness, getScrollBarPosition()});
             rectangle.setSize(sf::Vector2f(thickness, getScrollBarLength()));
-            rectangle.setPosition({getAssociateSize() - thickness, getScrollBarPosition()});
         } else {
+            rectangle.setPosition({getScrollBarPosition(), getAssociatedDrawSpace() - thickness});
             rectangle.setSize(sf::Vector2f(getScrollBarLength(), thickness));
-            rectangle.setPosition({getScrollBarPosition(), getAssociateSize() - thickness});
         }
 
         rectangle.setFillColor(color);
