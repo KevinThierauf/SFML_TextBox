@@ -383,9 +383,15 @@ namespace sftb {
         } else if (event.type == sf::Event::KeyReleased) {
             handleInput(event.key.code, false, event.key.control, event.key.shift, event.key.alt);
         } else if (event.type == sf::Event::TextEntered) {
-            if (inputHandler->isTextInput(event.text.unicode))
-                // convert carriage return to newline
-                handleTextInput(sf::String(event.text.unicode == '\r' ? '\n' : event.text.unicode));
+            if (inputHandler->isTextInput(event.text.unicode)) {
+                sf::String string;
+                // todo - remove replacing tab with spaces when support for non-monospaced characters are added
+                if (event.text.unicode == '\t') string = "    ";
+                    // convert carriage return to newline
+                else if (event.text.unicode == '\r') string = '\n';
+                else string = event.text.unicode;
+                handleTextInput(string);
+            }
         } else if (event.type == sf::Event::MouseWheelScrolled) {
             if (isOutBounds(verifyArea, event.mouseWheelScroll.x, event.mouseWheelScroll.y)) return;
 
