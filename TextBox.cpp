@@ -2,9 +2,9 @@
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Window/Event.hpp>
-#include <ostream>
 #include <cmath>
 #include "TextBox.hpp"
+#include "ScrollBarStyle.hpp"
 
 namespace sftb {
     // used to determine by how much to round when selecting character
@@ -107,21 +107,21 @@ namespace sftb {
 
     sf::Vector2f TextBox::getContentSize() const {
         return offset + sf::Vector2f{
-                getLongestLineLength() * getCharacterWidth(),
-                getNumberLines() * getLineHeight()
+                (getLongestLineLength() + 0.5f) * getCharacterWidth(),
+                (getNumberLines() + 0.5f) * getLineHeight()
         };
     }
 
     Pos TextBox::getVisibleStart() const {
-        return getPositionAt(getTextOffsetHorizontal(), getTextOffsetVertical());
+        return getPositionAt(0, 0);
     }
 
     Pos TextBox::getVisibleEnd() const {
-        return getPositionAt(sf::Vector2f(getTextOffsetHorizontal(), getTextOffsetVertical()) + getSize(), 0.5f, 0.5f);
+        return getPositionAt(getSize(), 0.5f, 0.5f);
     }
 
     bool TextBox::isPositionOnScreen(const Pos &position) const {
-        return getVisibleStart() <= position && position <= getVisibleEnd();
+        return getVisibleStart() <= position && position < getVisibleEnd();
     }
 
     Pos TextBox::getRelativeCharacters(Pos pos, int characters) const {
@@ -187,6 +187,13 @@ namespace sftb {
         float xPos = getOffsetOf(pos).x;
         auto position = getPositionAt(xPos, line * getLineHeight(), CHARACTER_ROUNDING).position;
         return {line, std::min(position, getLineLength(line))};
+    }
+
+    void TextBox::setScrollTo(const Pos &position) {
+        // todo
+//        sf::Vector2f positionOffset = getOffsetOf(position);
+//        scrollBarManager.getHorizontalScrollBar().setScrollPercent(positionOffset.x / scrollBarManager.getHorizontalScrollBar().getMaxScrollOffset());
+//        scrollBarManager.getVerticalScrollBar().setScrollPercent(positionOffset.y / scrollBarManager.getVerticalScrollBar().getMaxScrollOffset());
     }
 
     std::size_t TextBox::getLineLength(std::size_t line) const {
@@ -396,10 +403,6 @@ namespace sftb {
             if (isOutBounds(verifyArea, event.mouseWheelScroll.x, event.mouseWheelScroll.y)) return;
 
             handleScroll(event.mouseWheelScroll.wheel == sf::Mouse::Wheel::VerticalWheel, event.mouseWheelScroll.delta);
-            if (event.mouseWheelScroll.wheel == sf::Mouse::HorizontalWheel) {
-                scrollBarManager.getHorizontalScrollBar().moveScroll(event.mouseWheelScroll.delta);
-            } else
-                scrollBarManager.getVerticalScrollBar().moveScroll(event.mouseWheelScroll.delta);
         } else if (event.type == sf::Event::MouseButtonPressed) {
             if (isOutBounds(verifyArea, event.mouseButton.x, event.mouseButton.y)) return;
 
@@ -421,11 +424,15 @@ namespace sftb {
     }
 
     void TextBox::handleScroll(bool vertical, float amount) {
-        (vertical ? scrollBarManager.getVerticalScrollBar() : scrollBarManager.getHorizontalScrollBar())
-                .moveScroll(amount);
+        (vertical ? scrollBarManager.getVerticalScrollBar() : scrollBarManager.getHorizontalScrollBar()).moveScroll(-amount);
     }
 
     void TextBox::handleInput(sf::Mouse::Button button, bool pressed, int x, int y) {
+        if (scrollBarManager.getVerticalScrollBar().getScrollBarStyle().handleClick(sf::Vector2f(x, y), scrollBarManager.getVerticalScrollBar(), button, pressed) && pressed)
+            return;
+        if (scrollBarManager.getHorizontalScrollBar().getScrollBarStyle().handleClick(sf::Vector2f(x, y), scrollBarManager.getHorizontalScrollBar(), button, pressed) && pressed)
+            return;
+
         if (button == sf::Mouse::Button::Left) {
             if (pressed) {
                 caret.setClosestPosition(getPositionAt(x, y, CHARACTER_ROUNDING));
@@ -437,6 +444,9 @@ namespace sftb {
     }
 
     void TextBox::handleMousePositionChange(int x, int y) {
+        scrollBarManager.getVerticalScrollBar().getScrollBarStyle().handleMouseMove(sf::Vector2f(x, y), scrollBarManager.getVerticalScrollBar());
+        scrollBarManager.getHorizontalScrollBar().getScrollBarStyle().handleMouseMove(sf::Vector2f(x, y), scrollBarManager.getHorizontalScrollBar());
+
         if (selectionActive) {
             caret.setSelectionEndClosestPosition(getPositionAt(x, y, CHARACTER_ROUNDING));
         }

@@ -20,7 +20,7 @@ namespace sftb {
     public:
         static const sf::Color TEXT_HIGHLIGHT_COLOR;
     protected:
-        virtual void draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &caret) = 0;
+        virtual void draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &caret) const = 0;
         virtual std::shared_ptr<Highlighter> getSelectedTextHighlighter(const Caret &c);
 
         virtual void notifyPositionChange(const Caret &c, const Pos &previousPosition) {
@@ -52,15 +52,15 @@ namespace sftb {
 
         sf::Int32 lastPositionChange = 0;
     protected:
-        void draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &caret) override;
+        void draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &caret) const override;
         void notifyPositionChange(const Caret &caret, const Pos &previousPosition) override;
     public:
         explicit StandardCaretStyle(sf::Color firstColor = sf::Color::White,
                                     sf::Color secondColor = sf::Color::Transparent)
                 : firstColor(firstColor), secondColor(secondColor) {}
 
-        float getBlinkPercent();
-        sf::Color getCurrentCaretColor();
+        [[nodiscard]] float getBlinkPercent() const;
+        [[nodiscard]] sf::Color getCurrentCaretColor() const;
         [[nodiscard]] sf::Vector2f getCaretPosition(const Caret &caret) const;
         [[nodiscard]] sf::Vector2f getCaretSize(const Caret &caret) const;
 

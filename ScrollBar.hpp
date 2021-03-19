@@ -2,60 +2,73 @@
 #define SFML_TEXTBOX_SCROLLBAR_HPP
 
 #include <SFML/Graphics/Drawable.hpp>
-#include <SFML/Graphics/Color.hpp>
 #include <functional>
 #include <utility>
 #include "Reference.hpp"
 
 namespace sftb {
     class ScrollBarManager;
+    class ScrollBarStyle;
 
+    // todo - smooth scrolling
     class ScrollBar : public sf::Drawable {
+        friend class ScrollBarManager;
     public:
-        static constexpr float MIN_SCROLL_BAR_LENGTH = 20.0f;
-        static constexpr float DEFAULT_SCROLL_BAR_THICKNESS = 8.0f;
-        static constexpr float DEFAULT_SCROLL_SENSITIVITY = 40;
+        static constexpr float DEFAULT_SCROLL_SENSITIVITY = 80;
     private:
         ScrollBarManager **manager;
         bool vertical;
+        std::shared_ptr<ScrollBarStyle> style;
         float scrollAmount = 0;
-        sf::Color color = sf::Color::Black;
-        float thickness = DEFAULT_SCROLL_BAR_THICKNESS;
         float sensitivity = DEFAULT_SCROLL_SENSITIVITY;
-
-        [[nodiscard]] float getComponent(bool component, const sf::Vector2f &vector) const {
-            return component ? vector.y : vector.x;
-        }
-
-        [[nodiscard]] float getPrimary(const sf::Vector2f &vector) const {
-            return getComponent(vertical, vector);
-        }
+        bool selected = false;
 
         void setRedraw();
 
-        [[nodiscard]] float getSize() const;
-        [[nodiscard]] float getAssociatedDrawSpace() const;
-        [[nodiscard]] float getDrawSpace() const;
-
-        [[nodiscard]] float getScrollBarLength() const;
-        [[nodiscard]] float getScrollBarPosition() const;
+        ScrollBar(ScrollBarManager **manager, bool vertical);
     protected:
         void draw(sf::RenderTarget &target, sf::RenderStates states) const override;
 
     public:
-        ScrollBar(ScrollBarManager **manager, bool vertical) :
-                manager(manager), vertical(vertical) {}
+        [[nodiscard]] ScrollBarManager &getScrollBarManager() {
+            return **manager;
+        }
 
         [[nodiscard]] bool isVertical() const {
             return vertical;
         }
 
-        [[nodiscard]] float getMaxScroll() const {
-            return std::max(0.0f, (getSize() - getDrawSpace()) / sensitivity);
+        [[nodiscard]] const ScrollBarManager &getScrollBarManager() const {
+            return **manager;
         }
 
-        [[nodiscard]] float getMaxScrollOffset() const {
-            return -sensitivity * getMaxScroll();
+        [[nodiscard]] ScrollBarStyle &getScrollBarStyle() {
+            return *style;
+        }
+
+        [[nodiscard]] const ScrollBarStyle &getScrollBarStyle() const {
+            return *style;
+        }
+
+        void setScrollbarStyle(std::shared_ptr<ScrollBarStyle> s) {
+            assert(s != nullptr && "s is nullptr");
+            style = std::move(s);
+            setRedraw();
+        }
+
+        [[nodiscard]] bool isSelected() const {
+            return selected;
+        }
+
+        void setSelected(bool s) {
+            selected = s;
+        }
+
+        [[nodiscard]] const ScrollBar &getOpposite() const;
+        [[nodiscard]] float getMaxScrollOffset() const;
+
+        [[nodiscard]] float getMaxScroll() const {
+            return std::max(0.0f, getMaxScrollOffset() / sensitivity);
         }
 
         [[nodiscard]] float getScroll() const {
@@ -66,17 +79,14 @@ namespace sftb {
             return std::min(scrollAmount, getMaxScroll());
         }
 
-        void setScroll(float scroll) {
-            scrollAmount = std::clamp(scroll, 0.0f, getMaxScroll());
-            setRedraw();
-        }
+        void setScroll(float scroll);
 
         [[nodiscard]] float getScrollOffset() const {
             return -sensitivity * getScroll();
         }
 
         void setScrollOffset(float scroll) {
-            setScroll(scroll / sensitivity);
+            setScroll(scroll / -sensitivity);
         }
 
         void moveScroll(float amount) {
@@ -89,24 +99,6 @@ namespace sftb {
 
         void setScrollPercent(float percent) {
             setScroll(percent * getMaxScroll());
-        }
-
-        [[nodiscard]] const sf::Color &getColor() const {
-            return color;
-        }
-
-        void setColor(const sf::Color &c) {
-            color = c;
-            setRedraw();
-        }
-
-        [[nodiscard]] float getThickness() const {
-            return thickness;
-        }
-
-        void setThickness(float t) {
-            thickness = t;
-            setRedraw();
         }
 
         [[nodiscard]] float getSensitivity() const {
@@ -137,6 +129,10 @@ namespace sftb {
                 drawSpaceFunction(std::move(drawSpaceFunction)), vertical(getReference(), true),
                 horizontal(getReference(), false) {}
 
+        [[nodiscard]] const std::shared_ptr<bool> &getRedraw() const {
+            return redraw;
+        }
+
         [[nodiscard]] const ScrollBar &getVerticalScrollBar() const {
             return vertical;
         }
@@ -151,6 +147,14 @@ namespace sftb {
 
         [[nodiscard]] ScrollBar &getHorizontalScrollBar() {
             return horizontal;
+        }
+
+        [[nodiscard]] sf::Vector2f getContentSize() const {
+            return contentSizeFunction();
+        }
+
+        [[nodiscard]] sf::Vector2f getDrawSpace() const {
+            return drawSpaceFunction();
         }
     };
 }

@@ -49,6 +49,11 @@ namespace sftb {
 
     void Caret::insert(const sf::String &string) {
         removeSelectedText();
-        setPosition((**reference).insertText(getPosition(), string));
+        Pos position = (**reference).insertText(getPosition(), string);
+        setPosition(position);
+
+        if(&getTextBox().getPrimaryCaret() == this && !getTextBox().isPositionOnScreen(position)) {
+            getTextBox().setScrollTo(position);
+        }
     }
 }

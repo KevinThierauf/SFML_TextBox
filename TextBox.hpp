@@ -189,6 +189,8 @@ namespace sftb {
         // returns position above pos on screen (for monospaced fonts, this should return the same as getRelativeLine())
         [[nodiscard]] Pos getVisibleRelativeLine(Pos pos, int lineAmount) const;
 
+        void setScrollTo(const Pos &position);
+
         [[nodiscard]] sf::Font &getFont() const {
             return *font;
         }
@@ -223,6 +225,14 @@ namespace sftb {
 
         [[nodiscard]] std::shared_ptr<bool> getRedrawReference() {
             return redraw;
+        }
+
+        ScrollBarManager &getScrollBarManager() {
+            return scrollBarManager;
+        }
+
+        const ScrollBarManager &getScrollBarManager() const {
+            return scrollBarManager;
         }
 
         const sf::Color &getBackgroundColor() const {

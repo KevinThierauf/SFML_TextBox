@@ -1,20 +1,20 @@
 #ifndef SFML_TEXTBOX_TEXTSTYLE_HPP
 #define SFML_TEXTBOX_TEXTSTYLE_HPP
 
+#include <SFML/Graphics/Color.hpp>
+#include <memory>
+
 namespace sftb {
     /**
      * Text styling. Each character is styled according to one TextStyle object; styles
      * do not overlap, but may span several consecutive characters or lines.
-     *
-     * TextStyles are created and managed by their TextBox.
      */
     struct TextStyle {
         friend class TextBox;
     private:
         std::shared_ptr<bool> redraw;
         sf::Color textColor;
-        bool bold, italic;
-        bool underline, strikethrough;
+        bool bold, italic, underline, strikethrough;
     public:
         TextStyle(std::shared_ptr<bool> redraw, const sf::Color &textColor, bool bold, bool italic, bool underline,
                   bool strikethrough) : redraw(std::move(redraw)), textColor(textColor), bold(bold), italic(italic),

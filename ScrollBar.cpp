@@ -1,54 +1,34 @@
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
 #include "ScrollBar.hpp"
+#include "ScrollBarStyle.hpp"
 
 namespace sftb {
+    ScrollBar::ScrollBar(ScrollBarManager **manager, bool vertical) :
+            manager(manager), vertical(vertical), style(std::make_shared<StandardScrollBarStyle>(getScrollBarManager().getRedraw())) {}
+
     void ScrollBar::setRedraw() {
-        *(**manager).redraw = true;
-    }
-
-    float ScrollBar::getSize() const {
-        return std::max(1.0f, getPrimary((**manager).contentSizeFunction()));
-    }
-
-    float ScrollBar::getAssociatedDrawSpace() const {
-        return std::max(1.0f, getComponent(!vertical, (**manager).drawSpaceFunction()));
-    }
-
-    float ScrollBar::getDrawSpace() const {
-        return getPrimary((**manager).drawSpaceFunction());
-    }
-
-    float ScrollBar::getScrollBarLength() const {
-        float size = getSize();
-        // subtract thickness of other scrollbar so they don't overlap
-        float available = getDrawSpace();
-
-        if (size <= 0 || available <= 0) return 0;
-
-        return std::max(MIN_SCROLL_BAR_LENGTH, (available / size * available)
-                                               - (vertical ? (**manager).getHorizontalScrollBar().thickness : (**manager).getVerticalScrollBar().thickness));
-    }
-
-    float ScrollBar::getScrollBarPosition() const {
-        return getScrollPercent() * (getDrawSpace() - getScrollBarLength());
+        *getScrollBarManager().redraw = true;
     }
 
     void sftb::ScrollBar::draw(sf::RenderTarget &target, sf::RenderStates states) const {
-        // only draw scroll bar if needed
-        if (getDrawSpace() >= getSize()) return;
+        style->draw(target, states, *this);
+    }
 
-        sf::RectangleShape rectangle;
-        if (vertical) {
-            rectangle.setPosition({getAssociatedDrawSpace() - thickness, getScrollBarPosition()});
-            rectangle.setSize(sf::Vector2f(thickness, getScrollBarLength()));
-        } else {
-            rectangle.setPosition({getScrollBarPosition(), getAssociatedDrawSpace() - thickness});
-            rectangle.setSize(sf::Vector2f(getScrollBarLength(), thickness));
-        }
+    const ScrollBar &ScrollBar::getOpposite() const {
+        return vertical ? getScrollBarManager().getHorizontalScrollBar() : getScrollBarManager().getVerticalScrollBar();
+    }
 
-        rectangle.setFillColor(color);
-        target.draw(rectangle);
+    float ScrollBar::getMaxScrollOffset() const {
+        return ScrollBarStyle::getContentSize(*this) - ScrollBarStyle::getDrawSpace(*this);
+    }
+
+    void ScrollBar::setScroll(float scroll) {
+        if (scrollAmount == scroll) return;
+        float previous = getScroll();
+        scrollAmount = std::clamp(scroll, 0.0f, getMaxScroll());
+        style->notifyScrollChange(*this, previous);
+        setRedraw();
     }
 
     void ScrollBarManager::draw(sf::RenderTarget &target, sf::RenderStates states) const {

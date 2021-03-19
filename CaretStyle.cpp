@@ -13,7 +13,7 @@ namespace sftb {
         return highlighter;
     }
 
-    void StandardCaretStyle::draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &c) {
+    void StandardCaretStyle::draw(sf::RenderTarget &target, sf::RenderStates states, const Caret &c) const {
         sf::RectangleShape shape(getCaretSize(c));
         shape.setPosition(getCaretPosition(c));
         shape.setFillColor(getCurrentCaretColor());
@@ -23,13 +23,13 @@ namespace sftb {
             c.getTextBox().setRedrawRequired();
     }
 
-    float StandardCaretStyle::getBlinkPercent() {
+    float StandardCaretStyle::getBlinkPercent() const {
         auto time = clock.getElapsedTime().asMilliseconds();
         return caretBlinkWait > (time - lastPositionChange) ? 0.0f : 2 * std::abs(
                 static_cast<float>(time % caretBlinkPeriod) / static_cast<float>(caretBlinkPeriod) - 0.5f);
     }
 
-    sf::Color StandardCaretStyle::getCurrentCaretColor() {
+    sf::Color StandardCaretStyle::getCurrentCaretColor() const {
         float percent = getBlinkPercent();
         sf::Color first = getFirstColor();
         sf::Color second = getSecondColor();
@@ -46,6 +46,7 @@ namespace sftb {
         auto caretPosition = c.getPosition();
         auto position = c.getTextBox().getOffsetOf(caretPosition);
         position.x -= caretWidth / 2;
+        // todo -
         position.y += c.getTextBox().getLineHeight() / 8;
         return position;
     }
